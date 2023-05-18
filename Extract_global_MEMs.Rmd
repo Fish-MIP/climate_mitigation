@@ -1,0 +1,206 @@
+---
+title: "Extract data for climate mitigation project"
+author: "Julia Blanchard, Camilla Novaglio, Derek Tittensor"
+date: "2023-05-18"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Aim
+
+This script is for extracting FishMIP global marine ecosystem model outputs for use in a cross-sectoral climate mitigation paper being led by Christoph Semken.
+
+For this project we need th global time series of biomass outputs, spanning size ranges typical of exploited fishes - 10g to 1000 kg.
+
+We will calculate annual time series spanning 1850-2100 under the rcp8.5 and rcp2.6 scenarios for each of the models, for whihc outputs are available:
+
+APECOSM  - available, IPSL only
+BOATS  - available
+DBEM  - possible later to request OR possible using Lmax classes?
+DBPM - available
+EcoOcean  - possible using Lmax classes?
+EcoTroph  - available?
+FEISTY  - possible using Lmax classes?
+MACROECOLOGICAL  - available
+ZooMSS - available
+
+```{r cars}
+### Read in files and extract modelled data at global scale
+library(raster)
+library(ncfd4)
+library(tidyverse)
+library(ncdf4.helpers)
+library(parallel)
+library(pbapply)
+
+### using files and code prepared by Cami:
+
+dir<-"/rd/gem/private/users/camillan/EmergentConstraintData"
+
+mem<-c("apecosm","boats", "dbpm", "zoomss", "ecotroph", "macroecological") 
+esm<-c("gfdl-esm4", "ipsl-cm6a-lr")
+scenario<-c("historical", "ssp126", "ssp585") 
+
+
+# all 
+combinations<-expand.grid(mem = mem, esm = esm, scenario = scenario) %>%
+  mutate(resolution = ifelse(mem %in% c("zoomss", "ecotroph", "macroecological"), "annual", "monthly"), 
+         year = case_when(
+           mem %in% c("boats", "zoomss", "ecotroph", "macroecological") & scenario == "historical" ~ "1950_2014", 
+           mem %in% c("apecosm", "dbpm") & scenario == "historical" ~ "1850_2014",
+           scenario %in% c("ssp126", "ssp585") ~ "2015_2100"), 
+         mem = as.character(mem), 
+         esm = as.character(esm), 
+         scenario = as.character(scenario),
+         netcdf_name = paste0(paste(mem, esm, "nobasd", scenario, "nat_default_tcblog10_global", resolution, year, sep ="_"), ".nc"),
+         esm_simpler = ifelse(esm == "ipsl-cm6a-lr", "ipsl","gfdl"),
+         identifier = paste(mem, esm_simpler, scenario, sep ="_")) %>% 
+  select(-esm_simpler) %>% 
+  arrange(mem, esm, scenario)
+
+# apply function in // ----
+
+netcdf = combinations$netcdf_name
+
+# function to be applied
+extract_global_outputs<-function(netcdf,dir="/rd/gem/private/users/camillan/EmergentConstraintData"
+){
+  
+ # # trial
+  # netcdf = "ecotroph_gfdl-esm4_nobasd_historical_nat_default_tcblog10_global_annual_1950_2014.nc"
+  # file = "new"
+
+  if(file.exists(file.path(dir, netcdf))){
+  
+  ########## extract info from netcdf name
+  model = sub("\\_.*", "", netcdf)
+  
+  if(str_detect(netcdf, "gfdl", negate = FALSE)){
+    esm = "gfdl-esm4"
+  }else if (str_detect(netcdf, "ipsl", negate = FALSE)){
+    esm = "ipsl-cm6a-lr"
+  }
+  
+  # WARNING - add in EC? 
+  if(str_detect(netcdf, "monthly", negate = FALSE)){
+    time_step = "monthly"
+  }else if (str_detect(netcdf, "annual", negate = FALSE)){
+    time_step = "annual"
+  }
+  
+  if(str_detect(netcdf, "historical", negate = FALSE)){
+    scenario = "historical"
+  }else if (str_detect(netcdf, "ssp126", negate = FALSE)){
+    scenario = "ssp1"
+  }else if (str_detect(netcdf, "ssp585", negate = FALSE)){
+    scenario = "ssp5"
+  }else if (str_detect(netcdf, "picontrol|2100", negate = FALSE)) {
+    scenario = "picontrol_fut"
+  } else if (str_detect(netcdf, "picontrol|2014", negate = FALSE)) {
+    scenario = "picontrol_hist"}
+  
+  # extract info from netcdf description: 
+  nc_data <- nc_open(file.path(dir, netcdf))
+  
+  lon <- ncvar_get(nc_data, "lon")
+  lat <- ncvar_get(nc_data, "lat", verbose = F)
+  t <- as.character(nc.get.time.series(nc_data))
+  
+  # this is only to FIX zoom size bins names 
+  if(model != "zoomss" & file == "new"){
+    bins<-ncvar_get(nc_data, "bins")
+  }else if (model != "zoomss" & file == "old"){ # this is only to check DBPM old files (not in DKRZ)
+    bins<-ncvar_get(nc_data, "size")
+  }else if (model == "zoomss"){
+    bins<-c(1:6)}
+  
+  t_units<-ncatt_get(nc_data, "time", "units")$value
+  b_units<-ncatt_get(nc_data, "tcblog10", "units")$value
+  
+  nc_close(nc_data)
+  
+  # print warnings 
+  
+  stLon<-lon[1]
+  enLon<-lon[length(lon)]
+  stLat<-lat[1]
+  enLat<-lat[length(lat)]
+  stTime<-t[1]
+  enTime<-t[length(t)]
+  
+  if(stLon != -179.5){
+    warning(paste(model, esm, scenario, "incorrect starting Lon", sep = " "), immediate. = TRUE)
+  }
+  if(enLon != 179.5){
+    warning(paste(model, esm, scenario, "incorrect ending Lon", sep = " "), immediate. = TRUE)
+  }
+  if(stLat != 89.5){
+    warning(paste(model, esm, scenario, "incorrect starting Lat", sep = " "), immediate. = TRUE)
+  }
+  if(enLat != -89.5){
+    warning(paste(model, esm, scenario, "incorrect ending Lat", sep = " "), immediate. = TRUE)
+  }
+  if(scenario == "historical" & !stTime %in% c("1950-01-01","1850-01-01")){ # some model include 100 years more 
+    warning(paste(model, esm, scenario, "incorrect starting time", sep = " "), immediate. = TRUE)
+  }
+  if(scenario != "historical" & !stTime %in% c("2015-01-01")){
+    warning(paste(model, esm, scenario, "incorrect starting time", sep = " "), immediate. = TRUE)
+  }
+  if(scenario == "historical" & !enTime %in% c("2014-12-01", "2014-01-01")){ # models can be monthly or annual 
+    warning(paste(model, esm, scenario, "incorrect ending time", sep = " "), immediate. = TRUE)
+  }
+  if(scenario != "historical" & !enTime %in% c("2100-12-01", "2100-01-01")){ # models can be monthly or annual 
+    warning(paste(model, esm, scenario, "incorrect ending time", sep = " "), immediate. = TRUE)
+  }
+  if(t_units != "days since 1601-1-1 00:00:00"){
+    warning(paste(model, esm, scenario, "incorrect time units", sep = " "), immediate. = TRUE)
+  }
+  if(bins[1] != 1 & bins[6] != 6){
+    warning(paste(model, esm, scenario, "incorrect bins names", sep = " "), immediate. = TRUE)
+  }
+  if(bins[length(bins)] != 6){
+    warning(paste(model, esm, scenario, "incorrect bins dimension", sep = " "), immediate. = TRUE)
+  }
+  if(b_units != "g m-2"){
+    warning(paste(model, esm, scenario, "incorrect biomass units", sep = " "), immediate. = TRUE)
+  }
+ 
+  # extract data as raster object: 
+  brick_data<-list()
+ 
+  for (i in 1:length(bins)){
+    brick_data[[i]]<-brick(file.path(dir, netcdf), level = i)
+    print(dim(brick_data[[i]]))
+  }
+  
+
+return(brick_data)
+  }
+  
+} 
+  
+#test<-extract_global_outputs(netcdf[1],dir = dir)
+
+# now do all:
+
+cores<-detectCores()  -2
+
+all_bricks<-pblapply(netcdf,extract_global_outputs,cl=cores)
+
+## CHECK raster object - some combos don't exist
+all_bricks[[4]][[1]]
+
+# check map of first time slot
+plot(all_bricks[[4]][[1]][[1]])
+
+## NOW GET ANNUAL GLOBAL TIME SERIES FOR EACH MODEL AFTER SUMMMING ACROSS ALL LAYERS
+
+## NEED TO CHECK WHICH LAYERS ARE PRESENT ACROSS ALL MODELS
+
+
+  
+
+```
