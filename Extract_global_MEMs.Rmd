@@ -209,7 +209,7 @@ bricktotime <-function(br=1,all_bricks,lyr=1,month=1){
   lyrend<-length(lengths(all_bricks[[br]]))
   bricksum<-matrix(NA,nrow=monthend,ncol=lyrend)
   for(elyr in lyr:lyrend){
-      bricksum[,elyr]<-cellStats(all_bricks[[br]][[lyr]][[month:monthend]]*area(all_bricks[[4]][[1]][[month]])*1e6,sum)
+      bricksum[,elyr]<-cellStats(all_bricks[[br]][[elyr]][[month:monthend]]*area(all_bricks[[br]][[elyr]][[month:monthend]])*1e6,sum)
   }
   return(bricksum)
 }
@@ -225,17 +225,19 @@ bricklist<-which(whichones>0)
 
 non_empties<-Filter(Negate(is.null),all_bricks)
 
-all_bricksums<-list(1:length(non_empties))
+#all_bricksums<-list(1:length(non_empties))
 
-for (i in 1:2){
- all_bricksums[[i]]<-bricktotime(i,all_bricks=non_empties)
- }
+# for (i in 1:2){
+#  all_bricksums[[i]]<-bricktotime(i,all_bricks=non_empties)
+#  }
 
-#all_bricksums<-pbsapply(1:length(non_empties),bricktotime,all_bricks=non_empties,cl=26)
+all_bricksums<-pblapply(1:length(non_empties),bricktotime,all_bricks=non_empties,cl=26)
 
+filenames<-netcdf[bricklist] 
 
 saveRDS(all_bricksums,"TotalBiomassinSizeBinsbyModelRun.RDS")
 
-  
+saveRDS(filenames,"FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
+ 
 
 ```
