@@ -268,6 +268,7 @@ reference_period_max_year = 2014
 # Data frame to hold model size-summed outputs
 size_summed_outputs = data.frame("climate_model" = NA, "impact_model"= NA, "forcing"= NA, "time"= NA, "biomass"= NA)
 
+data_frame_start = 1
 for (ii in 1:length(mem))
 {
   for (jj in 1:length(esm))
@@ -301,7 +302,7 @@ for (ii in 1:length(mem))
         print("Bins to use for this model:")
         print(bins_to_use_this_model)
         
-        for (ll in 1:(max_year - min_year + 1))
+        for (ll in data_frame_start:(data_frame_start + (max_year - min_year)))
         {
           size_summed_outputs[ll,1] = esm[jj]
           size_summed_outputs[ll,2] = mem[ii]
@@ -309,6 +310,7 @@ for (ii in 1:length(mem))
           size_summed_outputs[ll,4] = min_year + ll - 1
           size_summed_outputs[ll,5] = sum(TotalBiomassinSizeBinsbyModelRun[[filename_to_use]][(ll - 1) * total_bins_this_model + (1:total_bins_this_model)][bins_to_use_this_model])
         }
+        data_frame_start = ll + 1
       }
     }
   }
