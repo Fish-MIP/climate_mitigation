@@ -197,9 +197,44 @@ all_bricks[[4]][[1]]
 plot(all_bricks[[4]][[1]][[1]])
 
 ## NOW GET ANNUAL GLOBAL TIME SERIES FOR EACH MODEL AFTER SUMMMING ACROSS ALL LAYERS
-
 ## NEED TO CHECK WHICH LAYERS ARE PRESENT ACROSS ALL MODELS
 
+
+#multiply each grid cell value by cell area and sum over all grid cells.
+#to multiply by area,  need to convert area from km2 to m2 (*1e6), and sum over all cells each month.
+
+
+bricktotime <-function(br=1,all_bricks,lyr=1,month=1){
+  monthend<-dim(all_bricks[[br]][[lyr]])[3]
+  lyrend<-length(lengths(all_bricks[[br]]))
+  bricksum<-matrix(NA,nrow=monthend,ncol=lyrend)
+  for(elyr in lyr:lyrend){
+      bricksum[,elyr]<-cellStats(all_bricks[[br]][[lyr]][[month:monthend]]*area(all_bricks[[4]][[1]][[month]])*1e6,sum)
+  }
+  return(bricksum)
+}
+
+
+
+whichones<-rep(NA,36)
+for (i in 1:36) whichones[i]<-length(all_bricks[[i]])
+bricklist<-which(whichones>0)
+
+# mylist <- all_bricks %>% 
+# purrr::map(`[`,bricklist) 
+
+non_empties<-Filter(Negate(is.null),all_bricks)
+
+all_bricksums<-list(1:length(non_empties))
+
+for (i in 1:2){
+ all_bricksums[[i]]<-bricktotime(i,all_bricks=non_empties)
+ }
+
+#all_bricksums<-pbsapply(1:length(non_empties),bricktotime,all_bricks=non_empties,cl=26)
+
+
+saveRDS(all_bricksums,"TotalBiomassinSizeBinsbyModelRun.RDS")
 
   
 
