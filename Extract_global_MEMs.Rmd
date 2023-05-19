@@ -240,4 +240,81 @@ saveRDS(all_bricksums,"TotalBiomassinSizeBinsbyModelRun.RDS")
 saveRDS(filenames,"FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
  
 
+#-------------------------------------------------------------------------------
+# Save the data in the format required for the project
+
+# Extract the appropriate size bins
+# For size-structure models these should be: 1-10g, 10-100g, 100g-1kg, 1-10kg, 10-100kg, >100kg
+# But note that models may have different bins
+
+# Mem_bins should contain the number of size bins provided by each model
+# AT PRESENT THIS IS JUST DUMMY/TEST DATA
+mem_bins = list(apecosm = 6, boats = 6, dbpm = 6, zoomss = 5, ecotroph = 6, macroecological = 6)
+
+# Mem_bins_to_use indicates the size bins that represent 10g - 100kg for each model
+# AT PRESENT THIS IS JUST DUMMY/TEST DATA
+mem_bins_to_use = list(apecosm = 2:5, boats = 2:3, dbpm = 3:4, zoomss = 1:4, ecotroph = 2:5, macroecological = 1:6)
+
+if (!identical(mem, names(mem_bins)))
+  print("Your mem names and list of bins for each mem do not match")
+
+if (!identical(mem, names(mem_bins_to_use)))
+  print("Your mem names and list of bins for each mem do not match")
+
+# Set the reference period for each model
+reference_period_min_year = 1995
+reference_period_max_year = 2014
+
+# Data frame to hold model size-summed outputs
+size_summed_outputs = data.frame("climate_model" = NA, "impact_model"= NA, "forcing"= NA, "time"= NA, "biomass"= NA)
+
+for (ii in 1:length(mem))
+{
+  for (jj in 1:length(esm))
+  {
+    for (kk in 1:length(scenario))
+    {
+      # Identify the specific model run
+      mem_model = which(FilenamesTotalBiomassinSizeBinsbyModelRun %in% str_subset(FilenamesTotalBiomassinSizeBinsbyModelRun, mem[ii]))
+      esm_model = which(FilenamesTotalBiomassinSizeBinsbyModelRun %in% str_subset(FilenamesTotalBiomassinSizeBinsbyModelRun, esm[jj]))
+      scenario_run = which(FilenamesTotalBiomassinSizeBinsbyModelRun %in% str_subset(FilenamesTotalBiomassinSizeBinsbyModelRun, scenario[kk]))
+      
+      filename_to_use = Reduce(intersect, list(mem_model, esm_model, scenario_run))
+      if ((length(filename_to_use) == 0) || (length(filename_to_use) >1))
+      {
+        print("Error when selecting file: either this model/esm/scenario combination was not used, or there are more than one files that match")
+        print(paste(mem[ii], esm[jj], scenario[kk], sep = " "))
+      } else
+      {
+        # Extract the data in the appropriate size bin(s)
+        min_years = c("1850","1950","2015")
+        max_years = c("2014","2100")
+        min_year = min(as.numeric(min_years[which(sapply(min_years, grepl, FilenamesTotalBiomassinSizeBinsbyModelRun[filename_to_use]) == TRUE)]))
+        max_year = max(as.numeric(max_years[which(sapply(max_years, grepl, FilenamesTotalBiomassinSizeBinsbyModelRun[filename_to_use]) == TRUE)]))
+        
+        print(paste(mem[ii], esm[jj], scenario[kk], sep = " "))
+             
+        total_bins_this_model = eval(parse(text = paste("mem_bins$",mem[ii],sep="")))
+        bins_to_use_this_model = eval(parse(text = paste("mem_bins_to_use$",mem[ii],sep="")))
+        
+        print(paste("Total size bins for this model: ", total_bins_this_model))
+        print("Bins to use for this model:")
+        print(bins_to_use_this_model)
+        
+        for (ll in 1:(max_year - min_year + 1))
+        {
+          size_summed_outputs[ll,1] = esm[jj]
+          size_summed_outputs[ll,2] = mem[ii]
+          size_summed_outputs[ll,3] = scenario[kk]
+          size_summed_outputs[ll,4] = min_year + ll - 1
+          size_summed_outputs[ll,5] = sum(TotalBiomassinSizeBinsbyModelRun[[filename_to_use]][(ll - 1) * total_bins_this_model + (1:total_bins_this_model)][bins_to_use_this_model])
+        }
+      }
+    }
+  }
+}
+
+
+# Now need to put into the format for the marginal impact project; see the pdf that they sent. Needs to be a damage function that is compared to a baseline period
+
 ```
