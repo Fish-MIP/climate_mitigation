@@ -190,7 +190,7 @@ cores<-detectCores()  -2
 
 all_bricks<-pblapply(netcdf,extract_global_outputs,cl=cores)
 
-## CHECK raster object - some combos don't exist
+## CHECK raster object - some combos don't exist: CN yes they will be skipped, empty list objects will need to be removed - Cn will do. now try committing 
 all_bricks[[4]][[1]]
 
 # check map of first time slot
