@@ -88,6 +88,8 @@ extract_global_outputs<-function(netcdf,file){
   
   # # trial
   # netcdf = "ecotroph_gfdl-esm4_nobasd_historical_nat_default_tcblog10_global_annual_1950_2014.nc"
+  # netcdf = "apecosm_ipsl-cm6a-lr_nobasd_historical_nat_default_tcblog10_global_monthly_1850_2014.nc"
+  # 
   # file = "new"
 
   if(file.exists(file.path(dir, netcdf))){
@@ -193,121 +195,121 @@ extract_global_outputs<-function(netcdf,file){
     print(dim(brick_data[[i]]))
   }
   
-  #### IF DT approach - end here: 
-  # return(brick_data = brick_data)}
-  
-  
-  
-  
-  
-  
-  
-  
-  ######### remove marginal seas using the land-sea IPSL mask provided by Matthias TO DO ----
-  
-  ######### calculate total weighted annual means for trends ----
-  
-  # STEP 1 - remove 1850-1950 as not all models have them
-  indices<-t
-  
-  if(scenario %in% c("historical","picontrol_hist")){
-    indices_subset<-indices[indices>="1950-01-01"]
-    indices_position<-match(indices_subset,indices)
-    brick_data_subset<-lapply(brick_data, FUN = function(x) raster::subset(x, indices_position))
-  }else if (scenario %in% c("ssp1","ssp5","picontrol_fut")){
-    brick_data_subset<-brick_data
-    } else if(scenario == "picontrol_whole"){
-    indices_subset<-indices[indices>="2015-01-01"]
-    indices_position<-match(indices_subset,indices)
-    brick_data_subset<-lapply(brick_data, FUN = function(x) raster::subset(x, indices_position))
-  }
-  
-  # STEP 2 - calculate annual means
-  # https://gis.stackexchange.com/questions/257090/calculating-and-displaying-mean-annual-precipitation-from-cru-data
-  # create vector to serve as index
-  
-  if(scenario %in% c("historical","picontrol_hist", "picontrol_whole")){ 
-    indices2<-as.Date(indices_subset)
-  }else if(scenario %in% c("ssp1", "ssp5", "picontrol_fut")){
-    indices2<-as.Date(t)}
-  
-  indices2<-format(indices2, format = "%Y")
-  indices2<-as.numeric(indices2)
-  brick_data_annual<-lapply(brick_data_subset, FUN = function(x) stackApply(x, indices=indices2, fun=mean))
-
-  # # CHECK 
-  # dim(brick_data_annual[[1]])
-  # plot(brick_data_annual[[1]][[15]])
-  
-  if(scenario == "picontrol_whole"){scenario = "picontrol_fut"}
-
-  # STEP 3 - extract global weighted trends 
-  weighted_mean_lat_ls<-list()
-  # weighted_mean_area_ls<-list()
-  
-  for(i in 1: length(brick_data_annual)){ # for each size bin
-    
-    # i =1
-    # mean values - weighted by grid cell latitude 
-    # https://stackoverflow.com/questions/55230510/calculating-weighted-spatial-global-annual-averages-across-grid-cells-using-netc
-    
-    # raster with latitude cell values 
-    w <- init(brick_data_annual[[i]], 'y')
-    # cosine after transforming to radians
-    w <- cos(w  * (pi/180)) # WARNING - what happens with negative lats? should is be abs(w)? min and max values look the same when using w or abs(w) ...
-    # plot(w)
-    # multiply weights with values
-    x <- brick_data_annual[[i]] * w
-    # plot(x)
-    # plot(w)
-    
-    # remove land in weights too 
-    w2<-mask(w, x, updatevalue=NA)
-    # plot(w2)
-    
-    # compute weighted average 
-    weighted_mean_lat<-cellStats(x, sum, na.rm = TRUE) / cellStats(w2, sum, na.rm = TRUE)
-    weighted_mean_lat_ls[[i]]<-data.frame(Year = unique(indices2), weighted_mean = weighted_mean_lat) %>% 
-      mutate(
-        Year = as.numeric(Year), 
-        file = netcdf, 
-        mem = model,
-        esm = esm,
-        scenario = scenario,
-        bin = bins[[i]]) 
-    rownames(weighted_mean_lat_ls[[i]])<-NULL
-    
-    # # WARNING try with area just to see if results are slightly different 
-    # a <- area(brick_data_annual[[i]]) / 10000
-    # x <- brick_data_annual[[i]] * a
-    # a2<-mask(a, x, updatevalue=NA)
-    # weighted_mean_area<-cellStats(x, sum, na.rm = TRUE) / cellStats(a2, sum, na.rm = TRUE)
-    # weighted_mean_area_ls[[i]]<-data.frame(Year = unique(indices2), weighted_mean = weighted_mean_area) %>% 
-    #   mutate(
-    #     Year = as.numeric(Year), 
-    #     file = netcdf, 
-    #     mem = model,
-    #     esm = esm,
-    #     scenario = scenario,
-    #     bin = bins[[i]]) 
-    # rownames(weighted_mean_area_ls[[i]])<-NULL
-    
-  }
-  
-  weighted_mean_lat_df<-do.call(rbind, weighted_mean_lat_ls) 
-  # weighted_mean_area_df<-do.call(rbind, weighted_mean_area_ls)
- 
-  ######### sum biomass across common bins ---- 
-  
-  weighted_mean_allBio<-weighted_mean_lat_df %>% 
-    filter(bin %in% c(2:5)) %>% # BOATS is the minimum common denominator 10g to 100kg
-    group_by(Year, mem, esm, scenario, file) %>% 
-    summarise(weighted_mean_allBio = sum(weighted_mean)) %>% 
-    ungroup()
-
-return(list(brick_data_annual = brick_data_annual, 
-            weighted_mean_lat_df = weighted_mean_lat_df, 
-            weighted_mean_allBio = weighted_mean_allBio))
+  #### IF DT approach - end here:
+  return(brick_data)
+#   
+#   
+#   
+#   
+#   
+#   
+#   
+#   
+#   ######### remove marginal seas using the land-sea IPSL mask provided by Matthias TO DO ----
+#   
+#   ######### calculate total weighted annual means for trends ----
+#   
+#   # STEP 1 - remove 1850-1950 as not all models have them
+#   indices<-t
+#   
+#   if(scenario %in% c("historical","picontrol_hist")){
+#     indices_subset<-indices[indices>="1950-01-01"]
+#     indices_position<-match(indices_subset,indices)
+#     brick_data_subset<-lapply(brick_data, FUN = function(x) raster::subset(x, indices_position))
+#   }else if (scenario %in% c("ssp1","ssp5","picontrol_fut")){
+#     brick_data_subset<-brick_data
+#     } else if(scenario == "picontrol_whole"){
+#     indices_subset<-indices[indices>="2015-01-01"]
+#     indices_position<-match(indices_subset,indices)
+#     brick_data_subset<-lapply(brick_data, FUN = function(x) raster::subset(x, indices_position))
+#   }
+#   
+#   # STEP 2 - calculate annual means
+#   # https://gis.stackexchange.com/questions/257090/calculating-and-displaying-mean-annual-precipitation-from-cru-data
+#   # create vector to serve as index
+#   
+#   if(scenario %in% c("historical","picontrol_hist", "picontrol_whole")){ 
+#     indices2<-as.Date(indices_subset)
+#   }else if(scenario %in% c("ssp1", "ssp5", "picontrol_fut")){
+#     indices2<-as.Date(t)}
+#   
+#   indices2<-format(indices2, format = "%Y")
+#   indices2<-as.numeric(indices2)
+#   brick_data_annual<-lapply(brick_data_subset, FUN = function(x) stackApply(x, indices=indices2, fun=mean))
+# 
+#   # # CHECK 
+#   # dim(brick_data_annual[[1]])
+#   # plot(brick_data_annual[[1]][[15]])
+#   
+#   if(scenario == "picontrol_whole"){scenario = "picontrol_fut"}
+# 
+#   # STEP 3 - extract global weighted trends 
+#   weighted_mean_lat_ls<-list()
+#   # weighted_mean_area_ls<-list()
+#   
+#   for(i in 1: length(brick_data_annual)){ # for each size bin
+#     
+#     # i =1
+#     # mean values - weighted by grid cell latitude 
+#     # https://stackoverflow.com/questions/55230510/calculating-weighted-spatial-global-annual-averages-across-grid-cells-using-netc
+#     
+#     # raster with latitude cell values 
+#     w <- init(brick_data_annual[[i]], 'y')
+#     # cosine after transforming to radians
+#     w <- cos(w  * (pi/180)) # WARNING - what happens with negative lats? should is be abs(w)? min and max values look the same when using w or abs(w) ...
+#     # plot(w)
+#     # multiply weights with values
+#     x <- brick_data_annual[[i]] * w
+#     # plot(x)
+#     # plot(w)
+#     
+#     # remove land in weights too 
+#     w2<-mask(w, x, updatevalue=NA)
+#     # plot(w2)
+#     
+#     # compute weighted average 
+#     weighted_mean_lat<-cellStats(x, sum, na.rm = TRUE) / cellStats(w2, sum, na.rm = TRUE)
+#     weighted_mean_lat_ls[[i]]<-data.frame(Year = unique(indices2), weighted_mean = weighted_mean_lat) %>% 
+#       mutate(
+#         Year = as.numeric(Year), 
+#         file = netcdf, 
+#         mem = model,
+#         esm = esm,
+#         scenario = scenario,
+#         bin = bins[[i]]) 
+#     rownames(weighted_mean_lat_ls[[i]])<-NULL
+#     
+#     # # WARNING try with area just to see if results are slightly different 
+#     # a <- area(brick_data_annual[[i]]) / 10000
+#     # x <- brick_data_annual[[i]] * a
+#     # a2<-mask(a, x, updatevalue=NA)
+#     # weighted_mean_area<-cellStats(x, sum, na.rm = TRUE) / cellStats(a2, sum, na.rm = TRUE)
+#     # weighted_mean_area_ls[[i]]<-data.frame(Year = unique(indices2), weighted_mean = weighted_mean_area) %>% 
+#     #   mutate(
+#     #     Year = as.numeric(Year), 
+#     #     file = netcdf, 
+#     #     mem = model,
+#     #     esm = esm,
+#     #     scenario = scenario,
+#     #     bin = bins[[i]]) 
+#     # rownames(weighted_mean_area_ls[[i]])<-NULL
+#     
+#   }
+#   
+#   weighted_mean_lat_df<-do.call(rbind, weighted_mean_lat_ls) 
+#   # weighted_mean_area_df<-do.call(rbind, weighted_mean_area_ls)
+#  
+#   ######### sum biomass across common bins ---- 
+#   
+#   weighted_mean_allBio<-weighted_mean_lat_df %>% 
+#     filter(bin %in% c(2:5)) %>% # BOATS is the minimum common denominator 10g to 100kg
+#     group_by(Year, mem, esm, scenario, file) %>% 
+#     summarise(weighted_mean_allBio = sum(weighted_mean)) %>% 
+#     ungroup()
+# 
+# return(list(brick_data_annual = brick_data_annual, 
+#             weighted_mean_lat_df = weighted_mean_lat_df, 
+#             weighted_mean_allBio = weighted_mean_allBio))
   } # end of if file exists 
   
 } # end of function  
@@ -320,40 +322,48 @@ return(list(brick_data_annual = brick_data_annual,
 
 # now do all:
 
-# cores<-detectCores()-2
-# all_bricks<-pblapply(netcdf,extract_global_outputs,cl=cores)
+cores<-detectCores()-2
+all_bricks<-pblapply(netcdf,extract_global_outputs,cl=cores)
 
-# CN version just as test - can go back to above : 
-library(tictoc)
-tic()
-all_bricks<-mclapply(netcdf, function(x) extract_global_outputs(x, file = "new"), mc.cores = detectCores()-2)
-toc() # started 10:10pm 
 
-# extract data from function object
-names(all_bricks) <- combinations$identifier
 
-# annual maps as raster objects  
-brick_data_annual<-sapply(all_bricks, function(x) x[["brick_data_annual"]])
-brick_data_annual[sapply(brick_data_annual, is.null)] <- NULL # remove empty objects 
-# check 
-names(brick_data_annual)
-plot(brick_data_annual$boats_gfdl_historical[[2]][[1]]) 
 
-# NOTE: if you need to consider only hist (or ssp126 or ssp585):
-hist<-names(brick_data_annual) %>% str_subset("historical")
-y_hist<-brick_data_annual[hist]
 
-# annual trend in biomass at size bins level, for each MEM and scenario combination 
-weighted_mean_lat_df<-sapply(all_bricks, function(x) x[["weighted_mean_lat_df"]])
-weighted_mean_lat_df[sapply(weighted_mean_lat_df, is.null)] <- NULL
-# check 
-weighted_mean_lat_df$boats_gfdl_historical
 
-# annual trend in total biomass (sum across size bins 2 to 5), for each MEM and scenario combination 
-weighted_mean_allBio<-sapply(all_bricks, function(x) x[["weighted_mean_allBio"]])
-weighted_mean_allBio[sapply(weighted_mean_allBio, is.null)] <- NULL
-# check 
-weighted_mean_allBio$boats_gfdl_historical
+
+
+
+# # CN version just as test - can go back to above : 
+# library(tictoc)
+# tic()
+# all_bricks<-mclapply(netcdf, function(x) extract_global_outputs(x, file = "new"), mc.cores = detectCores()-2)
+# toc() # started 10:10pm 
+# 
+# # extract data from function object
+# names(all_bricks) <- combinations$identifier
+# 
+# # annual maps as raster objects  
+# brick_data_annual<-sapply(all_bricks, function(x) x[["brick_data_annual"]])
+# brick_data_annual[sapply(brick_data_annual, is.null)] <- NULL # remove empty objects 
+# # check 
+# names(brick_data_annual)
+# plot(brick_data_annual$boats_gfdl_historical[[2]][[1]]) 
+# 
+# # NOTE: if you need to consider only hist (or ssp126 or ssp585):
+# hist<-names(brick_data_annual) %>% str_subset("historical")
+# y_hist<-brick_data_annual[hist]
+# 
+# # annual trend in biomass at size bins level, for each MEM and scenario combination 
+# weighted_mean_lat_df<-sapply(all_bricks, function(x) x[["weighted_mean_lat_df"]])
+# weighted_mean_lat_df[sapply(weighted_mean_lat_df, is.null)] <- NULL
+# # check 
+# weighted_mean_lat_df$boats_gfdl_historical
+# 
+# # annual trend in total biomass (sum across size bins 2 to 5), for each MEM and scenario combination 
+# weighted_mean_allBio<-sapply(all_bricks, function(x) x[["weighted_mean_allBio"]])
+# weighted_mean_allBio[sapply(weighted_mean_allBio, is.null)] <- NULL
+# # check 
+# weighted_mean_allBio$boats_gfdl_historical
 
 
 
@@ -381,17 +391,25 @@ plot(all_bricks[[4]][[1]][[1]])
 
 ```{r}
 
-save(brick_data_annual,
-     weighted_mean_lat_df, 
-     weighted_mean_allBio, 
-     file = "/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs.RData")
+# # CN version 
+# save(brick_data_annual,
+#      weighted_mean_lat_df, 
+#      weighted_mean_allBio, 
+#      file = "/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs.RData")
+
 
 #multiply each grid cell value by cell area and sum over all grid cells.
 #to multiply by area,  need to convert area from km2 to m2 (*1e6), and sum over all cells each month.
 
-# DT 
+# # JB version
 
 bricktotime <-function(br=1,all_bricks,lyr=1,month=1){
+  
+  # # trial 
+  # br = 1
+  # lyr=1
+  # month = 1
+  
   monthend<-dim(all_bricks[[br]][[lyr]])[3]
   lyrend<-length(lengths(all_bricks[[br]]))
   bricksum<-matrix(NA,nrow=monthend,ncol=lyrend)
@@ -428,6 +446,17 @@ saveRDS(filenames,"FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
  
 
 #-------------------------------------------------------------------------------
+## DT version 
+
+## CN trial - not sure which data (mem and esm etc.) is used below. 
+rm(list=ls())
+# trial # CN using RDS from Julia
+mem<-c("apecosm","boats", "dbpm", "zoomss", "ecotroph", "macroecological") 
+esm<-c("gfdl-esm4", "ipsl-cm6a-lr")
+scenario<-c("historical", "ssp126", "ssp585") 
+TotalBiomassinSizeBinsbyModelRun<-readRDS("TotalBiomassinSizeBinsbyModelRun.RDS")
+FilenamesTotalBiomassinSizeBinsbyModelRun<-readRDS("FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
+
 # Save the data in the format required for the project
 
 # Extract the appropriate size bins
@@ -436,11 +465,11 @@ saveRDS(filenames,"FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
 
 # Mem_bins should contain the number of size bins provided by each model
 # AT PRESENT THIS IS JUST DUMMY/TEST DATA
-mem_bins = list(apecosm = 6, boats = 6, dbpm = 6, zoomss = 5, ecotroph = 6, macroecological = 6)
+mem_bins = list(apecosm = 6, boats = 6, dbpm = 6, zoomss = 5, ecotroph = 6, macroecological = 5)
 
 # Mem_bins_to_use indicates the size bins that represent 10g - 100kg for each model
 # AT PRESENT THIS IS JUST DUMMY/TEST DATA
-mem_bins_to_use = list(apecosm = 2:5, boats = 2:3, dbpm = 3:4, zoomss = 1:4, ecotroph = 2:5, macroecological = 1:6)
+mem_bins_to_use = list(apecosm = 1:6, boats = 2:5, dbpm = 1:6, zoomss = 1:6, ecotroph = 1:6, macroecological = 1:5)
 
 if (!identical(mem, names(mem_bins)))
   print("Your mem names and list of bins for each mem do not match")
@@ -458,10 +487,14 @@ size_summed_outputs = data.frame("climate_model" = NA, "impact_model"= NA, "forc
 data_frame_start = 1
 for (ii in 1:length(mem))
 {
+  # ii = 1
   for (jj in 1:length(esm))
   {
+    # jj = 2
     for (kk in 1:length(scenario))
     {
+      # kk = 1
+      
       # Identify the specific model run
       mem_model = which(FilenamesTotalBiomassinSizeBinsbyModelRun %in% str_subset(FilenamesTotalBiomassinSizeBinsbyModelRun, mem[ii]))
       esm_model = which(FilenamesTotalBiomassinSizeBinsbyModelRun %in% str_subset(FilenamesTotalBiomassinSizeBinsbyModelRun, esm[jj]))
