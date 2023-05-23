@@ -271,17 +271,17 @@ extract_global_outputs<-function(netcdf, file = "new"){
   
   # STEP 3 sum biomass across common bins 
 
-  weighted_mean_allBio<-weighted_sum_df %>%
+  weighted_sum_allBio<-weighted_sum_df %>%
     filter(bin %in% c(2:5)) %>% # BOATS is the minimum common denominator 10g to 100kg
     group_by(Year, mem, esm, scenario, file) %>%
-    summarise(weighted_mean_allBio = sum(weighted_sum)) %>%
+    summarise(weighted_sum_allBio = sum(weighted_sum)) %>%
     ungroup()
 
   
   return(list(
     brick_data_annual = brick_data_annual, 
     weighted_sum_df = weighted_sum_df,
-    weighted_mean_allBio = weighted_mean_allBio))
+    weighted_sum_allBio = weighted_sum_allBio))
   
   rm(brick_data, brick_data_subset, indices, indices2, w, x, weighted_sum, brick_data_annual, weighted_sum_df, weighted_mean_allBio)
   
@@ -389,47 +389,32 @@ all_bricks<-pblapply(netcdf,extract_global_outputs,cl=detectCores()-2)
 # # CN version just as test - can go back to above : 
 # all_bricks<-mclapply(netcdf, function(x) extract_global_outputs(x, file = "new"), mc.cores = detectCores()-2)
 # 
-# # extract data from function object
-# names(all_bricks) <- combinations$identifier
-# 
-# # annual maps as raster objects  
-# brick_data_annual<-sapply(all_bricks, function(x) x[["brick_data_annual"]])
-# brick_data_annual[sapply(brick_data_annual, is.null)] <- NULL # remove empty objects 
-# # check 
-# names(brick_data_annual)
-# plot(brick_data_annual$boats_gfdl_historical[[2]][[1]]) 
-# 
-# # NOTE: if you need to consider only hist (or ssp126 or ssp585):
-# hist<-names(brick_data_annual) %>% str_subset("historical")
-# y_hist<-brick_data_annual[hist]
-# 
-# # annual trend in biomass at size bins level, for each MEM and scenario combination 
-# weighted_mean_lat_df<-sapply(all_bricks, function(x) x[["weighted_mean_lat_df"]])
-# weighted_mean_lat_df[sapply(weighted_mean_lat_df, is.null)] <- NULL
-# # check 
-# weighted_mean_lat_df$boats_gfdl_historical
-# 
-# # annual trend in total biomass (sum across size bins 2 to 5), for each MEM and scenario combination 
-# weighted_mean_allBio<-sapply(all_bricks, function(x) x[["weighted_mean_allBio"]])
-# weighted_mean_allBio[sapply(weighted_mean_allBio, is.null)] <- NULL
-# # check 
-# weighted_mean_allBio$boats_gfdl_historical
 
+# extract data from function object
+names(all_bricks) <- combinations$identifier
 
+# annual maps as raster objects
+brick_data_annual<-sapply(all_bricks, function(x) x[["brick_data_annual"]])
+brick_data_annual[sapply(brick_data_annual, is.null)] <- NULL # remove empty objects
+# check
+names(brick_data_annual)
+plot(brick_data_annual$boats_gfdl_historical[[2]][[1]])
 
+# NOTE: if you need to consider only hist (or ssp126 or ssp585):
+hist<-names(brick_data_annual) %>% str_subset("historical")
+y_hist<-brick_data_annual[hist]
 
-#### CN this is now old: 
+# annual trend in biomass at size bins level, for each MEM, ESM and scenario combination
+weighted_sum_df<-sapply(all_bricks, function(x) x[["weighted_sum_df"]])
+weighted_sum_df[sapply(weighted_sum_df, is.null)] <- NULL
+# check
+weighted_sum_df$boats_gfdl_historical
 
-## CHECK raster object - some combos don't exist: CN yes they will be skipped, empty list objects will need to be removed 
-all_bricks[[4]][[1]]
-
-# check map of first time slot
-plot(all_bricks[[4]][[1]][[1]])
-
-
-## NOW GET ANNUAL GLOBAL TIME SERIES FOR EACH MODEL AFTER SUMMMING ACROSS ALL LAYERS
-
-# CN now done within function above
+# annual trend in total biomass (sum across size bins 2 to 5), for each MEM, ESM and scenario combination
+weighted_sum_allBio<-sapply(all_bricks, function(x) x[["weighted_sum_allBio"]])
+weighted_sum_allBio[sapply(weighted_sum_allBio, is.null)] <- NULL
+# check
+weighted_sum_allBio$boats_gfdl_historical
 
 ## NEED TO CHECK WHICH LAYERS ARE PRESENT ACROSS ALL MODELS
 
@@ -441,25 +426,23 @@ plot(all_bricks[[4]][[1]][[1]])
 
 ```{r}
 
-# # CN version 
-# save(brick_data_annual,
-#      weighted_mean_lat_df, 
-#      weighted_mean_allBio, 
-#      file = "/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs.RData")
+# CN version
+save(brick_data_annual,
+     weighted_mean_lat_df,
+     weighted_mean_allBio,
+     file = "/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs.RData")
 
+```
 
+### Julia an Derek version on a function above that 
+
+```{r}
 #multiply each grid cell value by cell area and sum over all grid cells.
 #to multiply by area,  need to convert area from km2 to m2 (*1e6), and sum over all cells each month.
 
 # # JB version
 
 bricktotime <-function(br=1,all_bricks,lyr=1,month=1){
-  
-  # # trial 
-  # br = 1
-  # lyr=1
-  # month = 1
-  
   monthend<-dim(all_bricks[[br]][[lyr]])[3]
   lyrend<-length(lengths(all_bricks[[br]]))
   bricksum<-matrix(NA,nrow=monthend,ncol=lyrend)
@@ -468,8 +451,6 @@ bricktotime <-function(br=1,all_bricks,lyr=1,month=1){
   }
   return(bricksum)
 }
-
-
 
 whichones<-rep(NA,36)
 for (i in 1:36) whichones[i]<-length(all_bricks[[i]])
@@ -498,7 +479,7 @@ saveRDS(filenames,"FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
 #-------------------------------------------------------------------------------
 ## DT version 
 
-## CN trial - not sure which data (mem and esm etc.) is used below. 
+## CN trial 
 rm(list=ls())
 # trial # CN using RDS from Julia
 mem<-c("apecosm","boats", "dbpm", "zoomss", "ecotroph", "macroecological") 
