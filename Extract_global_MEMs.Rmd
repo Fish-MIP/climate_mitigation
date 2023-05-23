@@ -233,12 +233,12 @@ extract_global_outputs<-function(netcdf, file = "new"){
   indices2<-format(indices2, format = "%Y")
   indices2<-as.numeric(indices2)
   
+  # create a raster with latitude cell values (outside loop for efficiency)
+  w <- area(brick_data_subset[[1]])*1e6 # WARNING - code below does /10000 - why?? adjust in EC even if not used, and in FishingEffort when calculating trends in climate inputs (code 09, again not used but should be corrected) 
+  
   weighted_sum_ls<-list()
   
   for(i in 1: length(brick_data_subset)){ # for each size bin
-
-    # raster with latitude cell values
-    w <- area(brick_data_subset[[i]])*1e6 # WARNING - code below does /10000 - why?? adjust in EC even if not used, and in FishingEffort when calculating trends in climate inputs (code 09, again not used but should be corrected) 
     
     # multiply area with values
     x <- brick_data_subset[[i]] * w
@@ -274,7 +274,7 @@ extract_global_outputs<-function(netcdf, file = "new"){
   weighted_mean_allBio<-weighted_sum_df %>%
     filter(bin %in% c(2:5)) %>% # BOATS is the minimum common denominator 10g to 100kg
     group_by(Year, mem, esm, scenario, file) %>%
-    summarise(weighted_mean_allBio = sum(weighted_mean)) %>%
+    summarise(weighted_mean_allBio = sum(weighted_sum_annual)) %>%
     ungroup()
 
   
@@ -374,11 +374,11 @@ extract_global_outputs<-function(netcdf, file = "new"){
 
 
 
-test<-extract_global_outputs(netcdf[4]) # apecosm gfdl (netcdf[1] to 3) does not exist and will be skipped in function below
-# 
-# # check
-# dim(test$brick_data_annual)
-# plot(test$brick_data_annual[[5]][[780]]) # size bin 5, last time step 
+test<-extract_global_outputs(netcdf[4]) 
+
+# check
+dim(test$brick_data_annual)
+plot(test$brick_data_annual[[5]][[780]]) # size bin 5, last time step
 
 # now do all:
 
