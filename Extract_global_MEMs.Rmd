@@ -89,7 +89,6 @@ extract_global_outputs<-function(netcdf, file = "new"){
   # # trial
   # netcdf = "ecotroph_gfdl-esm4_nobasd_historical_nat_default_tcblog10_global_annual_1950_2014.nc"
   # netcdf = "apecosm_ipsl-cm6a-lr_nobasd_historical_nat_default_tcblog10_global_monthly_1850_2014.nc"
-  # 
   # file = "new"
 
   if(file.exists(file.path(dir, netcdf))){
@@ -200,7 +199,7 @@ extract_global_outputs<-function(netcdf, file = "new"){
 
   ######### WARINING - remove marginal seas using the land-sea IPSL mask provided by Matthias TO DO ----
 
-  ######### calculate total annual sums OR weighted annual means for trends ----
+  ######### calculate total annual sums (OR weighted annual means) ----
 
   # STEP 1 - remove 1850-1950 as not all models have them
   indices<-t
@@ -217,13 +216,11 @@ extract_global_outputs<-function(netcdf, file = "new"){
     brick_data_subset<-lapply(brick_data, FUN = function(x) raster::subset(x, indices_position))
   }
 
-  # STEP 2 - calculate annual sums following Julia's approach: 
+  # STEP 2 - calculate annual sums: 
   # Julia: multiply each grid cell value by cell area and sum over all grid cells.
-  # to multiply by area, need to convert area from km2 to m2 (*1e6), and sum over all cells each month.
-  # from area() If x is a Raster* object: RasterLayer or RasterBrick. Cell values represent the size of the cell in km2
+  # to multiply by area, need to convert area from km2 to m2 (*1e6), and sum over all cells each month. # from area() If x is a Raster* object: RasterLayer or RasterBrick. Cell values represent the size of the cell in km2
   
   # create vector to serve as index
-  # NOTE: in other versions, where you do weighted mean, you fist average across month and then weighted.mean across grid cells. here you first sum across grid cell in each month and then across months. 
 
   if(scenario %in% c("historical","picontrol_hist", "picontrol_whole")){
     indices2<-as.Date(indices_subset)
@@ -233,36 +230,39 @@ extract_global_outputs<-function(netcdf, file = "new"){
   indices2<-format(indices2, format = "%Y")
   indices2<-as.numeric(indices2)
   
+  # WARNING whether it is monthly or annual outputs? i.e. sum across months and then across lat/long below? note that biomass is a stock not a rate and does not have time dimension 
+  brick_data_annual<-lapply(brick_data_subset, FUN = function(x) stackApply(x, indices=indices2, fun=sum))
+
+  # # CHECK
+  # dim(brick_data_annual[[1]])
+  # plot(brick_data_annual[[1]][[15]])
+  # plot(brick_data_subset[[1]][[15]])
+
+  if(scenario == "picontrol_whole"){scenario = "picontrol_fut"}
+  
   # create a raster with latitude cell values (outside loop for efficiency)
-  w <- area(brick_data_subset[[1]])*1e6 # WARNING - code below does /10000 - why?? adjust in EC even if not used, and in FishingEffort when calculating trends in climate inputs (code 09, again not used but should be corrected) 
+  w <- area(brick_data_annual[[1]])*1e6 # WARNING - the code below does /10000, why?? adjust in EC even if not used, and in FishingEffort when calculating trends in climate inputs (code 09, again not used but should be corrected) 
   
   weighted_sum_ls<-list()
   
-  for(i in 1: length(brick_data_subset)){ # for each size bin
+  for(i in 1: length(brick_data_annual)){ # for each size bin
     
     # multiply area with values
-    x <- brick_data_subset[[i]] * w
+    x <- brick_data_annual[[i]] * w
     # plot(x)
     # plot(w)
 
-    # compute annual sums - WARNING whether it is monthly or annual outputs? i.e. sum across months and then across lat/long? 
-    
-    # sum across cells 
+    # compute grid cell weighed sums 
     weighted_sum<-cellStats(x, sum, na.rm = TRUE) 
-    
-    # combine data and sum across months if the model is "monthly".  
-    weighted_sum_ls[[i]]<-data.frame(Year = indices2, weighted_sum = weighted_sum) %>%
+    weighted_sum_ls[[i]]<-data.frame(Year = unique(indices2), weighted_sum = weighted_sum) %>%
       mutate(
         Year = as.numeric(Year),
         file = netcdf,
         mem = model,
         esm = esm,
         scenario = scenario,
-        bin = bins[[i]]) %>% 
-      group_by(Year, file, mem, esm, scenario, bin) %>% 
-      summarise(weighted_sum_annual = sum(weighted_sum)) %>% 
-      ungroup()
-    
+        bin = bins[[i]]) 
+
     rownames(weighted_sum_ls[[i]])<-NULL
 
   }
@@ -274,13 +274,16 @@ extract_global_outputs<-function(netcdf, file = "new"){
   weighted_mean_allBio<-weighted_sum_df %>%
     filter(bin %in% c(2:5)) %>% # BOATS is the minimum common denominator 10g to 100kg
     group_by(Year, mem, esm, scenario, file) %>%
-    summarise(weighted_mean_allBio = sum(weighted_sum_annual)) %>%
+    summarise(weighted_mean_allBio = sum(weighted_sum)) %>%
     ungroup()
 
   
-  return(list(brick_data_annual = brick_data_annual,
-              weighted_sum_df = weighted_sum_df,
-              weighted_mean_allBio = weighted_mean_allBio))
+  return(list(
+    brick_data_annual = brick_data_annual, 
+    weighted_sum_df = weighted_sum_df,
+    weighted_mean_allBio = weighted_mean_allBio))
+  
+  rm(brick_data, brick_data_subset, indices, indices2, w, x, weighted_sum, brick_data_annual, weighted_sum_df, weighted_mean_allBio)
   
 #   # STEP 2 ALTERNATIVE - calculate annual means
 #   # https://gis.stackexchange.com/questions/257090/calculating-and-displaying-mean-annual-precipitation-from-cru-data
@@ -373,7 +376,7 @@ extract_global_outputs<-function(netcdf, file = "new"){
 } # end of function  
 
 
-
+# test function 
 test<-extract_global_outputs(netcdf[4]) 
 
 # check
@@ -381,23 +384,10 @@ dim(test$brick_data_annual)
 plot(test$brick_data_annual[[5]][[780]]) # size bin 5, last time step
 
 # now do all:
-
-cores<-detectCores()-2
-all_bricks<-pblapply(netcdf,extract_global_outputs,cl=cores)
-
-
-
-
-
-
-
-
+all_bricks<-pblapply(netcdf,extract_global_outputs,cl=detectCores()-2)
 
 # # CN version just as test - can go back to above : 
-# library(tictoc)
-# tic()
 # all_bricks<-mclapply(netcdf, function(x) extract_global_outputs(x, file = "new"), mc.cores = detectCores()-2)
-# toc() # started 10:10pm 
 # 
 # # extract data from function object
 # names(all_bricks) <- combinations$identifier
