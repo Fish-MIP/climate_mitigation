@@ -90,6 +90,7 @@ extract_global_outputs<-function(netcdf, file = "new"){
   # netcdf = "ecotroph_gfdl-esm4_nobasd_historical_nat_default_tcblog10_global_annual_1950_2014.nc"
   # netcdf = "apecosm_ipsl-cm6a-lr_nobasd_historical_nat_default_tcblog10_global_monthly_1850_2014.nc"
   # netcdf = "macroecological_ipsl-cm6a-lr_nobasd_ssp585_nat_default_tcblog10_global_annual_2015_2100.nc"
+  # netcdf = "boats_gfdl-esm4_nobasd_historical_nat_default_tcblog10_global_monthly_1950_2014.nc"
   # file = "new"
 
   if(file.exists(file.path(dir, netcdf))){
@@ -195,6 +196,10 @@ extract_global_outputs<-function(netcdf, file = "new"){
     print(dim(brick_data[[i]]))
   }
   
+  # # check 
+  # plot(brick_data[[1]][[1]])
+  # mean(brick_data[[1]]) # BOATS size class 1 and 6 is a matrix of NAs
+  
   #### IF JB and DT approach - function end here and output is:
   # return(brick_data)
 
@@ -217,6 +222,9 @@ extract_global_outputs<-function(netcdf, file = "new"){
     brick_data_subset<-lapply(brick_data, FUN = function(x) raster::subset(x, indices_position))
   }
 
+  # # CHECK 
+  # plot(brick_data_subset[[1]][[1]])
+  
   # STEP 2 - calculate annual sums: 
   # Julia: multiply each grid cell value by cell area and sum over all grid cells.
   # to multiply by area, need to convert area from km2 to m2 (*1e6), and sum over all cells each month. # from area() If x is a Raster* object: RasterLayer or RasterBrick. Cell values represent the size of the cell in km2
@@ -234,10 +242,39 @@ extract_global_outputs<-function(netcdf, file = "new"){
   # WARNING whether it is monthly or annual outputs? i.e. sum across months and then across lat/long below? note that biomass is a stock not a rate and does not have time dimension 
   brick_data_annual<-lapply(brick_data_subset, FUN = function(x) stackApply(x, indices=indices2, fun=sum))
 
-  # # CHECK
-  # dim(brick_data_annual[[1]])
-  # plot(brick_data_annual[[1]][[15]])
-  # plot(brick_data_subset[[1]][[15]])
+  
+  
+  
+  
+  # #### ARRIVATA QUI.... problem with the above function which yields 0s instead of NAs - is the function working as it should?? 
+  # ## START CHECKS 
+  # 
+  # # # CHECK
+  # # dim(brick_data_annual[[1]])
+  # # plot(brick_data_annual[[1]][[1]]) # WARNING! here boats becomes 0s!!!!!!!
+  # # plot(brick_data_subset[[1]][[12]]) # all months in one year are NAs
+  # trial<-lapply(brick_data_subset, FUN = function(x) stackApply(x, indices=indices2, fun=mean))
+  # # plot(trial[[1]][[15]]) # this remains NAs ... !!!!!!
+  # 
+  # # Sum manually: 
+  # trial_sum<-brick_data_subset[[1]][[1]]+brick_data_subset[[1]][[2]]+brick_data_subset[[1]][[3]]+brick_data_subset[[1]][[4]]+brick_data_subset[[1]][[5]]+brick_data_subset[[1]][[6]]+brick_data_subset[[1]][[7]]+brick_data_subset[[1]][[8]]+brick_data_subset[[1]][[9]]+brick_data_subset[[1]][[10]]+brick_data_subset[[1]][[11]]+brick_data_subset[[1]][[12]]
+  # plot(trial_sum)
+  # 
+  # # sum across one year only using the function above 
+  # indices_subset_trial<-indices[indices>="1950-01-01" & indices<"1951-01-01"]
+  # indices_position_trial<-match(indices_subset_trial,indices)
+  # brick_data_subset_trial<-lapply(brick_data, FUN = function(x) raster::subset(x, indices_position_trial))
+  # 
+  # indices2_trial<-rep(1950, 12)
+  # 
+  # brick_data_annual_trial<-stackApply(brick_data_subset_trial[[1]], indices = indices2_trial, fun = sum) 
+  # 
+  # plot(brick_data_annual_trial) # this still gives 0s! 
+  # 
+  # ##### END CHECK 
+  
+  
+  
 
   if(scenario == "picontrol_whole"){scenario = "picontrol_fut"}
   
@@ -375,25 +412,20 @@ extract_global_outputs<-function(netcdf, file = "new"){
   
 } # end of function  
 
-
-# test function 
-test<-extract_global_outputs(netcdf[4]) 
-
-# check
-test$brick_data_annual
-plot(test$brick_data_annual[[5]][[10]]) # size bin 5, random time step
-
-rm(test)
+# 
+# # test function 
+# test<-extract_global_outputs(netcdf[4]) 
+# 
+# # check
+# test$brick_data_annual
+# plot(test$brick_data_annual[[5]][[10]]) # size bin 5, random time step
+# 
+# rm(test)
 
 # now do all:
 all_bricks<-pblapply(netcdf,extract_global_outputs,cl=detectCores()-2)
 
-# # CN version just as test - can go back to above : 
-# all_bricks<-mclapply(netcdf, function(x) extract_global_outputs(x, file = "new"), mc.cores = detectCores()-2)
-# 
-
 # extract data from function object
-length(all_bricks)
 names(all_bricks) <- combinations$identifier
 
 # annual maps as raster objects
