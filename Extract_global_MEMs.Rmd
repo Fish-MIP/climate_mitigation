@@ -84,7 +84,7 @@ combinations<-expand.grid(mem = mem, esm = esm, scenario = scenario) %>%
 netcdf = combinations$netcdf_name
 
 # function to be applied
-extract_global_outputs<-function(netcdf,file){
+extract_global_outputs<-function(netcdf, file = "new"){
   
   # # trial
   # netcdf = "ecotroph_gfdl-esm4_nobasd_historical_nat_default_tcblog10_global_annual_1950_2014.nc"
@@ -235,9 +235,7 @@ extract_global_outputs<-function(netcdf,file){
   
   weighted_sum_ls<-list()
   
-  for(i in 1: length(brick_data_annual)){ # for each size bin
-
-    # i =1
+  for(i in 1: length(brick_data_subset)){ # for each size bin
 
     # raster with latitude cell values
     w <- area(brick_data_subset[[i]])*1e6 # WARNING - code below does /10000 - why?? adjust in EC even if not used, and in FishingEffort when calculating trends in climate inputs (code 09, again not used but should be corrected) 
@@ -271,7 +269,7 @@ extract_global_outputs<-function(netcdf,file){
 
   weighted_sum_df<-do.call(rbind, weighted_sum_ls)
   
-  ######### sum biomass across common bins ----
+  # STEP 3 sum biomass across common bins 
 
   weighted_mean_allBio<-weighted_sum_df %>%
     filter(bin %in% c(2:5)) %>% # BOATS is the minimum common denominator 10g to 100kg
@@ -279,9 +277,10 @@ extract_global_outputs<-function(netcdf,file){
     summarise(weighted_mean_allBio = sum(weighted_mean)) %>%
     ungroup()
 
-return(list(brick_data_annual = brick_data_annual,
-            weighted_sum_df = weighted_sum_df,
-            weighted_mean_allBio = weighted_mean_allBio))
+  
+  return(list(brick_data_annual = brick_data_annual,
+              weighted_sum_df = weighted_sum_df,
+              weighted_mean_allBio = weighted_mean_allBio))
   
 #   # STEP 2 ALTERNATIVE - calculate annual means
 #   # https://gis.stackexchange.com/questions/257090/calculating-and-displaying-mean-annual-precipitation-from-cru-data
@@ -375,10 +374,7 @@ return(list(brick_data_annual = brick_data_annual,
 
 
 
-
-
-
-# test<-extract_global_outputs(netcdf[4],dir = dir) # apecosm gfdl (netcdf[1] to 3) does not exist and will be skipped in function below
+test<-extract_global_outputs(netcdf[4]) # apecosm gfdl (netcdf[1] to 3) does not exist and will be skipped in function below
 # 
 # # check
 # dim(test$brick_data_annual)
