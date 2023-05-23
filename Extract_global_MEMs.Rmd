@@ -425,6 +425,17 @@ weighted_sum_allBio$boats_gfdl_historical
 
 ```
 
+### save data as temp_file 
+
+```{r}
+
+save(brick_data_annual,
+     weighted_sum_df,
+     weighted_sum_allBio,
+     file = "/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs_sums.RData")
+
+```
+
 ### check outputs 
 
 ```{r}
@@ -458,18 +469,6 @@ plot(brick_data_annual$dbpm_ipsl_historical[[1]][[1]])
 plot(brick_data_annual$apecosm_ipsl_historical[[1]][[1]])
 plot(brick_data_annual$boats_ipsl_historical[[1]][[1]]) # this is not good as it should be NAs and not 0s
 weighted_sum_df$boats_gfdl_historical # these are 0s in df too ... check if this is becasue of the way you multiplied the grid cell area ...  
-
-```
-
-
-### save data as temp_file 
-
-```{r}
-
-save(brick_data_annual,
-     weighted_sum_df,
-     weighted_sum_allBio,
-     file = "/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs.RData")
 
 ```
 
