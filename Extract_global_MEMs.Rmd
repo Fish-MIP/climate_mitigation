@@ -89,6 +89,7 @@ extract_global_outputs<-function(netcdf, file = "new"){
   # # trial
   # netcdf = "ecotroph_gfdl-esm4_nobasd_historical_nat_default_tcblog10_global_annual_1950_2014.nc"
   # netcdf = "apecosm_ipsl-cm6a-lr_nobasd_historical_nat_default_tcblog10_global_monthly_1850_2014.nc"
+  # netcdf = "macroecological_ipsl-cm6a-lr_nobasd_ssp585_nat_default_tcblog10_global_annual_2015_2100.nc"
   # file = "new"
 
   if(file.exists(file.path(dir, netcdf))){
@@ -276,7 +277,6 @@ extract_global_outputs<-function(netcdf, file = "new"){
     group_by(Year, mem, esm, scenario, file) %>%
     summarise(weighted_sum_allBio = sum(weighted_sum)) %>%
     ungroup()
-
   
   return(list(
     brick_data_annual = brick_data_annual, 
@@ -380,8 +380,10 @@ extract_global_outputs<-function(netcdf, file = "new"){
 test<-extract_global_outputs(netcdf[4]) 
 
 # check
-dim(test$brick_data_annual)
-plot(test$brick_data_annual[[5]][[780]]) # size bin 5, last time step
+test$brick_data_annual
+plot(test$brick_data_annual[[5]][[10]]) # size bin 5, random time step
+
+rm(test)
 
 # now do all:
 all_bricks<-pblapply(netcdf,extract_global_outputs,cl=detectCores()-2)
@@ -391,6 +393,7 @@ all_bricks<-pblapply(netcdf,extract_global_outputs,cl=detectCores()-2)
 # 
 
 # extract data from function object
+length(all_bricks)
 names(all_bricks) <- combinations$identifier
 
 # annual maps as raster objects
@@ -422,14 +425,50 @@ weighted_sum_allBio$boats_gfdl_historical
 
 ```
 
+### check outputs 
+
+```{r}
+
+## NOTE should probably do this to all df before saving 
+weighted_sum_df_toplot<- do.call(rbind, weighted_sum_df)
+unique(weighted_sum_df_toplot$esm)  
+
+# consider one combination only - not as per Derek's plot!!!!!!! why? load data saved by Julia and explore... 
+weighted_sum_df_toplot2<-weighted_sum_df_toplot %>% 
+  filter(mem == "apecosm", esm == "ipsl-cm6a-lr")
+
+# macroecological missing future files - to download as for slope paper you are not considering this model adn for SO you are not considering the future
+weighted_sum_df_toplot2<-weighted_sum_df_toplot %>% 
+  filter(mem == "macroecological", esm == "gfdl-esm4")
+
+ggplot(weighted_sum_df_toplot2, aes(x = Year, y = weighted_sum, group = scenario, color = scenario))+
+  geom_line()+
+  facet_wrap(~bin, scale = "free")
+
+## all together - DBPM problem - why? i thought abundance even for the smallest size class was lower than for the other models... to check better 
+weighted_sum_df_toplot3<- weighted_sum_df_toplot %>% 
+  mutate(ID = paste(esm, bin, scenario, sep ="_"))
+
+ggplot(weighted_sum_df_toplot3, aes(x = Year, y = weighted_sum, group = ID, color = scenario))+
+  geom_line()+
+  facet_wrap(~mem)
+
+## plot maps of values 
+plot(brick_data_annual$dbpm_ipsl_historical[[1]][[1]])
+plot(brick_data_annual$apecosm_ipsl_historical[[1]][[1]])
+plot(brick_data_annual$boats_ipsl_historical[[1]][[1]]) # this is not good as it should be NAs and not 0s
+weighted_sum_df$boats_gfdl_historical # these are 0s in df too ... check if this is becasue of the way you multiplied the grid cell area ...  
+
+```
+
+
 ### save data as temp_file 
 
 ```{r}
 
-# CN version
 save(brick_data_annual,
-     weighted_mean_lat_df,
-     weighted_mean_allBio,
+     weighted_sum_df,
+     weighted_sum_allBio,
      file = "/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs.RData")
 
 ```
