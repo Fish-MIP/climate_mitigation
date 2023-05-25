@@ -272,20 +272,37 @@ head(trial)
 nrow(trial)
 
 time<-seq(as.Date("1850-01-01"), as.Date("2014-12-31"), by="month")
-time<-format(as.Date(time, format="%Y-%m-%d"),"%Y")
-year = as.numeric(time)
-length(time)
+# time<-format(as.Date(time, format="%Y-%m-%d"),"%Y")
+# year = as.numeric(time)
+# length(time)
 
-new_data<-cbind(year, trial)
-new_data<-new_data %>% 
-  gather(key = size, value = biomass, -year)
+new_data<-cbind(time, trial)
 head(new_data)
+# library(tidyverse)
 new_data<-new_data %>% 
-  group_by(year) %>% 
-  summarise(biomass = sum(biomass)) %>% 
-  ungroup()
+  gather(key = size, value = biomass, -time)
+head(new_data)
 
-ggplot(new_data, aes(x = year, y = biomass))+
+str(new_data)
+
+new_data<-new_data %>% 
+  dplyr::filter(size %in% c("V2", "V3", "V4", "V5")) %>% 
+  group_by(time) %>% 
+  summarise(biomass = sum(biomass)) %>% 
+  ungroup() 
+
+new_data2<-new_data %>% 
+  mutate(year = format(as.Date(time, format="%Y-%m-%d"),"%Y")) %>% 
+  group_by(year) %>% 
+  summarise(biomass = mean(biomass)) %>% 
+  ungroup() 
+
+str(new_data2)
+
+new_data2$year<-as.numeric(new_data2$year)
+
+head(new_data2)
+ggplot(new_data2, aes(x = year, y = biomass))+
   geom_line()
 
 #-------------------------------------------------------------------------------
