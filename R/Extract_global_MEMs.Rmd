@@ -211,7 +211,7 @@ plot_ipsl/plot_gfdl
 dev.off()
 
 # check apecosm 
-SumsAllBio_df_toplot2<-SumsAllBio_df_toplot %>% 
+SumsAllBio_df_toplot2<-SumsAllBio_df %>% 
   filter(mem == "apecosm", esm == "ipsl-cm6a-lr", scenario == "historical")
 
 plot<-ggplot(SumsAllBio_df_toplot2, aes(x = year, y = biomass))+
