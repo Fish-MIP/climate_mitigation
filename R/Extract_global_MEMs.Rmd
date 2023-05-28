@@ -56,6 +56,8 @@ library(parallel)
 library(pbapply)
 library(dplyr, warn.conflicts = FALSE)
 
+select<-dplyr::select 
+
 ```
 
 ## Read in files and extract modelled data at global scale
@@ -108,6 +110,7 @@ all_bricks<-pblapply(netcdf,extract_global_outputs,cl=detectCores()-2)
 # extract data from function object
 names(all_bricks) <- combinations$identifier
 
+# extract data from function objects
 # annual maps as raster objects
 brick_data_annual<-sapply(all_bricks, function(x) x[["brick_data_annual"]])
 brick_data_annual[sapply(brick_data_annual, is.null)] <- NULL # remove empty objects
@@ -155,13 +158,10 @@ head(SumsAllBio_df)
 
 ```{r}
 
-# Extract_global_MEMs_allBins.RData = bins 1 to 6 considered 
-# Extract_global_MEMs.RData = bins 2 to 5 considered
-
 save(brick_data_annual,
      SumsBySizeBins_df,
      SumsAllBio_df,
-     file = "/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs_allBins.RData")
+     file = "/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs.RData")
 
 ```
 
@@ -170,22 +170,14 @@ save(brick_data_annual,
 ```{r}
 
 rm(list=ls())
-data<-"/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs_allBins.RData"
 data<-"/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs.RData"
 load(data)
 
-SumsBySizeBins_df_toplot<-SumsBySizeBins_df %>% 
-  filter(mem == "apecosm", esm == "ipsl-cm6a-lr")
-
-plot<-ggplot(SumsBySizeBins_df_toplot, aes(x = year, y = biomass, group = scenario, color = scenario))+
-  geom_line()+
-  facet_wrap(~bin, scale = "free")
-
 # plot all 
-SumsBySizeBins_df_toplot2<- SumsBySizeBins_df %>% 
+SumsBySizeBins_df_toplot<- SumsBySizeBins_df %>% 
   mutate(ID = paste(esm, bin, scenario, sep ="_"))
 
-plot<-ggplot(SumsBySizeBins_df_toplot2, aes(x = year, y = biomass, group = ID, color = scenario))+
+plot<-ggplot(SumsBySizeBins_df_toplot, aes(x = year, y = biomass, group = ID, color = scenario))+
   geom_line()+
   facet_wrap(~mem)
 
@@ -194,21 +186,39 @@ plot
 dev.off()
 
 # plot biomass tot 
-SumsAllBio_df_toplot<- SumsAllBio_df %>% 
-  mutate(ID = paste(esm, scenario, sep ="_"))
+SumsAllBio_df_toplot_ipsl<- SumsAllBio_df %>% 
+  filter(esm == "ipsl-cm6a-lr")
 
-plot<-ggplot(SumsAllBio_df_toplot, aes(x = year, y = biomass, group = ID, color = scenario))+
+plot_ipsl<-ggplot(SumsAllBio_df_toplot_ipsl, aes(x = year, y = biomass, group = scenario, color = scenario))+
   geom_line()+
+  theme_bw()+
+  ggtitle("IPSL")+
   facet_wrap(~mem, scale = "free")
 
-jpeg("/home/ubuntu/climate_mitigation/Output/trends_allModels_allBinsSummed.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
-plot
+SumsAllBio_df_toplot_gfdl<- SumsAllBio_df %>% 
+  filter(esm != "ipsl-cm6a-lr")
+
+plot_gfdl<-ggplot(SumsAllBio_df_toplot_gfdl, aes(x = year, y = biomass, group = scenario, color = scenario))+
+  geom_line()+
+  theme_bw()+
+  ggtitle("GFDL")+
+  facet_wrap(~mem, scale = "free")
+
+library(patchwork)
+
+jpeg("/home/ubuntu/climate_mitigation/Output/trends_allModels_allBinsSummed.jpg", width = 8, height = 8, units = "in", res = 300, bg = "transparent")
+plot_ipsl/plot_gfdl
 dev.off()
 
-plot<-ggplot(filter(SumsAllBio_df_toplot, mem == "apecosm"), aes(x = year, y = biomass, group = ID, color = scenario))+
+# check apecosm 
+SumsAllBio_df_toplot2<-SumsAllBio_df_toplot %>% 
+  filter(mem == "apecosm", esm == "ipsl-cm6a-lr", scenario == "historical")
+
+plot<-ggplot(SumsAllBio_df_toplot2, aes(x = year, y = biomass))+
   geom_line()
 
-jpeg("/home/ubuntu/climate_mitigation/Output/trends_apecosm_allBinsSeparately.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
+# check this is the same as per JB and DT (see test)
+jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_CNcode.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
 plot
 dev.off()
 
@@ -218,194 +228,13 @@ plot(brick_data_annual$apecosm_ipsl_historical[[1]][[1]])
 
 ```
 
-### Julia an Derek version on a function above that 
+## print .csv 
 
 ```{r}
-#multiply each grid cell value by cell area and sum over all grid cells.
-#to multiply by area,  need to convert area from km2 to m2 (*1e6), and sum over all cells each month.
 
-# # JB version using half cami's function 
-
-bricktotime <-function(br=1,all_bricks,lyr=1,month=1){
-  monthend<-dim(all_bricks[[br]][[lyr]])[3]
-  lyrend<-length(lengths(all_bricks[[br]]))
-  bricksum<-matrix(NA,nrow=monthend,ncol=lyrend)
-  for(elyr in lyr:lyrend){
-      bricksum[,elyr]<-cellStats(all_bricks[[br]][[elyr]][[month:monthend]]*area(all_bricks[[br]][[elyr]][[month:monthend]])*1e6,sum)
-  }
-  return(bricksum)
-}
-
-whichones<-rep(NA,36)
-for (i in 1:36) whichones[i]<-length(all_bricks[[i]])
-bricklist<-which(whichones>0)
-
-# mylist <- all_bricks %>% 
-# purrr::map(`[`,bricklist) 
-
-non_empties<-Filter(Negate(is.null),all_bricks)
-
-#all_bricksums<-list(1:length(non_empties))
-
-# for (i in 1:2){
-#  all_bricksums[[i]]<-bricktotime(i,all_bricks=non_empties)
-#  }
-
-all_bricksums<-pblapply(1:length(non_empties),bricktotime,all_bricks=non_empties,cl=26)
-
-filenames<-netcdf[bricklist] 
-
-saveRDS(all_bricksums,"TotalBiomassinSizeBinsbyModelRun.RDS")
-
-saveRDS(filenames,"FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
- 
-#-------------------------------------------------------------------------------
-## CN check that you get the same results if you use julia's approach 
-# use apecosm as example # WARNING - I cannot reproduce Derek's nor my plot !!!! 
-
-TotalBiomassinSizeBinsbyModelRun<-readRDS("TotalBiomassinSizeBinsbyModelRun.RDS")
-trial<-TotalBiomassinSizeBinsbyModelRun[[1]]
-dim(trial)
-class(trial)
-trial<-as.data.frame(trial)
-head(trial)
-nrow(trial)
-
-time<-seq(as.Date("1850-01-01"), as.Date("2014-12-31"), by="month")
-# time<-format(as.Date(time, format="%Y-%m-%d"),"%Y")
-# year = as.numeric(time)
-# length(time)
-
-new_data<-cbind(time, trial)
-head(new_data)
-# library(tidyverse)
-new_data<-new_data %>% 
-  gather(key = size, value = biomass, -time)
-head(new_data)
-
-str(new_data)
-
-new_data<-new_data %>% 
-  dplyr::filter(size %in% c("V2", "V3", "V4", "V5")) %>% 
-  group_by(time) %>% 
-  summarise(biomass = sum(biomass)) %>% 
-  ungroup() 
-
-new_data2<-new_data %>% 
-  mutate(year = format(as.Date(time, format="%Y-%m-%d"),"%Y")) %>% 
-  group_by(year) %>% 
-  summarise(biomass = mean(biomass)) %>% 
-  ungroup() 
-
-str(new_data2)
-
-new_data2$year<-as.numeric(new_data2$year)
-
-head(new_data2)
-ggplot(new_data2, aes(x = year, y = biomass))+
-  geom_line()
-
-#-------------------------------------------------------------------------------
-## DT version 
-
-## CN trial 
-rm(list=ls())
-# trial # CN using RDS from Julia
-mem<-c("apecosm","boats", "dbpm", "zoomss", "ecotroph", "macroecological") 
-esm<-c("gfdl-esm4", "ipsl-cm6a-lr")
-scenario<-c("historical", "ssp126", "ssp585") 
-TotalBiomassinSizeBinsbyModelRun<-readRDS("TotalBiomassinSizeBinsbyModelRun.RDS")
-FilenamesTotalBiomassinSizeBinsbyModelRun<-readRDS("FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
-
-# Save the data in the format required for the project
-
-# Extract the appropriate size bins
-# For size-structure models these should be: 1-10g, 10-100g, 100g-1kg, 1-10kg, 10-100kg, >100kg
-# But note that models may have different bins
-
-# Mem_bins should contain the number of size bins provided by each model
-# AT PRESENT THIS IS JUST DUMMY/TEST DATA
-mem_bins = list(apecosm = 6, boats = 6, dbpm = 6, zoomss = 5, ecotroph = 6, macroecological = 5)
-
-# Mem_bins_to_use indicates the size bins that represent 10g - 100kg for each model
-# AT PRESENT THIS IS JUST DUMMY/TEST DATA
-mem_bins_to_use = list(apecosm = 1:6, boats = 2:5, dbpm = 1:6, zoomss = 1:6, ecotroph = 1:6, macroecological = 1:5)
-
-if (!identical(mem, names(mem_bins)))
-  print("Your mem names and list of bins for each mem do not match")
-
-if (!identical(mem, names(mem_bins_to_use)))
-  print("Your mem names and list of bins for each mem do not match")
-
-# Set the reference period for each model
-reference_period_min_year = 1995
-reference_period_max_year = 2014
-
-# Data frame to hold model size-summed outputs
-size_summed_outputs = data.frame("climate_model" = NA, "impact_model"= NA, "forcing"= NA, "time"= NA, "biomass"= NA)
-
-data_frame_start = 1
-for (ii in 1:length(mem))
-{
-  ii = 1
-  for (jj in 1:length(esm))
-  {
-    jj = 2
-    for (kk in 1:length(scenario))
-    {
-      kk = 1
-      
-      # Identify the specific model run
-      mem_model = which(FilenamesTotalBiomassinSizeBinsbyModelRun %in% str_subset(FilenamesTotalBiomassinSizeBinsbyModelRun, mem[ii]))
-      esm_model = which(FilenamesTotalBiomassinSizeBinsbyModelRun %in% str_subset(FilenamesTotalBiomassinSizeBinsbyModelRun, esm[jj]))
-      scenario_run = which(FilenamesTotalBiomassinSizeBinsbyModelRun %in% str_subset(FilenamesTotalBiomassinSizeBinsbyModelRun, scenario[kk]))
-      
-      filename_to_use = Reduce(intersect, list(mem_model, esm_model, scenario_run))
-      if ((length(filename_to_use) == 0) || (length(filename_to_use) >1))
-      {
-        print("Error when selecting file: either this model/esm/scenario combination was not used, or there are more than one files that match")
-        print(paste(mem[ii], esm[jj], scenario[kk], sep = " "))
-      } else
-      {
-        # Extract the data in the appropriate size bin(s)
-        min_years = c("1850","1950","2015")
-        max_years = c("2014","2100")
-        min_year = min(as.numeric(min_years[which(sapply(min_years, grepl, FilenamesTotalBiomassinSizeBinsbyModelRun[filename_to_use]) == TRUE)]))
-        max_year = max(as.numeric(max_years[which(sapply(max_years, grepl, FilenamesTotalBiomassinSizeBinsbyModelRun[filename_to_use]) == TRUE)]))
-        
-        print(paste(mem[ii], esm[jj], scenario[kk], sep = " "))
-             
-        total_bins_this_model = eval(parse(text = paste("mem_bins$",mem[ii],sep="")))
-        bins_to_use_this_model = eval(parse(text = paste("mem_bins_to_use$",mem[ii],sep="")))
-        
-        print(paste("Total size bins for this model: ", total_bins_this_model))
-        print("Bins to use for this model:")
-        print(bins_to_use_this_model)
-        
-        for (ll in data_frame_start:(data_frame_start + (max_year - min_year)))
-        {
-          size_summed_outputs[ll,1] = esm[jj]
-          size_summed_outputs[ll,2] = mem[ii]
-          size_summed_outputs[ll,3] = scenario[kk]
-          size_summed_outputs[ll,4] = min_year + ll - 1
-          size_summed_outputs[ll,5] = sum(TotalBiomassinSizeBinsbyModelRun[[filename_to_use]][(ll - 1) * total_bins_this_model + (1:total_bins_this_model)][bins_to_use_this_model])
-        }
-        data_frame_start = ll + 1
-      }
-    }
-  }
-}
-
-# CN reproduce Derek's plot to check yours - not possible... 
-# is this the same as the one you produce when considering all size bins? no  
-unique(size_summed_outputs$time)
-size_summed_outputs<-size_summed_outputs %>% 
-  filter(time <=2014)
-ggplot(size_summed_outputs, aes(x = time, y = biomass))+
-  geom_line()
-
-# Now need to put into the format for the marginal impact project; see the pdf that they sent. Needs to be a damage function that is compared to a baseline period
+write.csv(SumsAllBio_df,
+     file = "/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs_SumsAllBio_df.csv",
+     row.names = FALSE)
 
 ```
-
 

@@ -143,105 +143,6 @@ extract_global_outputs<-function(netcdf, file = "new"){
     # # CHECK 
     # plot(brick_data_subset[[1]][[1]])
     
-    # # STEP 2 - calculate annual sums: 
-    # # Julia: multiply each grid cell value by cell area and sum over all grid cells.
-    # # to multiply by area, need to convert area from km2 to m2 (*1e6), and sum over all cells each month. # from area() If x is a Raster* object: RasterLayer or RasterBrick. Cell values represent the size of the cell in km2
-    # 
-    # # create vector to serve as index
-    # 
-    # if(scenario %in% c("historical","picontrol_hist", "picontrol_whole")){
-    #   indices2<-as.Date(indices_subset)
-    # }else if(scenario %in% c("ssp1", "ssp5", "picontrol_fut")){
-    #   indices2<-as.Date(t)}
-    # 
-    # indices2<-format(indices2, format = "%Y")
-    # indices2<-as.numeric(indices2)
-    # 
-    # # WARNING whether it is monthly or annual outputs? i.e. sum across months and then across lat/long below? note that biomass is a stock not a rate and does not have time dimension 
-    # brick_data_annual<-lapply(brick_data_subset, FUN = function(x) stackApply(x, indices=indices2, fun=mean)) #### WARNING - adjust as per mean ... 
-    # 
-    # 
-    # 
-    # 
-    # 
-    # # #### ARRIVATA QUI.... problem with the above function which yields 0s instead of NAs - is the function working as it should?? 
-    # # ## START CHECKS 
-    # # 
-    # # # # CHECK
-    # # # dim(brick_data_annual[[1]])
-    # # # plot(brick_data_annual[[1]][[1]]) # WARNING! here boats becomes 0s!!!!!!!
-    # # # plot(brick_data_subset[[1]][[12]]) # all months in one year are NAs
-    # # trial<-lapply(brick_data_subset, FUN = function(x) stackApply(x, indices=indices2, fun=mean))
-    # # # plot(trial[[1]][[15]]) # this remains NAs ... !!!!!!
-    # # 
-    # # # Sum manually: 
-    # # trial_sum<-brick_data_subset[[1]][[1]]+brick_data_subset[[1]][[2]]+brick_data_subset[[1]][[3]]+brick_data_subset[[1]][[4]]+brick_data_subset[[1]][[5]]+brick_data_subset[[1]][[6]]+brick_data_subset[[1]][[7]]+brick_data_subset[[1]][[8]]+brick_data_subset[[1]][[9]]+brick_data_subset[[1]][[10]]+brick_data_subset[[1]][[11]]+brick_data_subset[[1]][[12]]
-    # # plot(trial_sum)
-    # # 
-    # # # sum across one year only using the function above 
-    # # indices_subset_trial<-indices[indices>="1950-01-01" & indices<"1951-01-01"]
-    # # indices_position_trial<-match(indices_subset_trial,indices)
-    # # brick_data_subset_trial<-lapply(brick_data, FUN = function(x) raster::subset(x, indices_position_trial))
-    # # 
-    # # indices2_trial<-rep(1950, 12)
-    # # 
-    # # brick_data_annual_trial<-stackApply(brick_data_subset_trial[[1]], indices = indices2_trial, fun = sum) 
-    # # 
-    # # plot(brick_data_annual_trial) # this still gives 0s! 
-    # # 
-    # # ##### END CHECK 
-    # 
-    # 
-    # 
-    # 
-    # if(scenario == "picontrol_whole"){scenario = "picontrol_fut"}
-    # 
-    # # create a raster with latitude cell values (outside loop for efficiency)
-    # w <- area(brick_data_annual[[1]])*1e6 # WARNING - the code below does /10000, why?? adjust in EC even if not used, and in FishingEffort when calculating trends in climate inputs (code 09, again not used but should be corrected) 
-    # 
-    # weighted_sum_ls<-list()
-    # 
-    # for(i in 1: length(brick_data_annual)){ # for each size bin
-    #   
-    #   # multiply area with values
-    #   x <- brick_data_annual[[i]] * w
-    #   # plot(x)
-    #   # plot(w)
-    # 
-    #   # compute grid cell weighed sums 
-    #   weighted_sum<-cellStats(x, sum, na.rm = TRUE) 
-    #   weighted_sum_ls[[i]]<-data.frame(Year = unique(indices2), weighted_sum = weighted_sum) %>%
-    #     mutate(
-    #       Year = as.numeric(Year),
-    #       file = netcdf,
-    #       mem = model,
-    #       esm = esm,
-    #       scenario = scenario,
-    #       bin = bins[[i]]) 
-    # 
-    #   rownames(weighted_sum_ls[[i]])<-NULL
-    # 
-    # }
-    # 
-    # weighted_sum_df<-do.call(rbind, weighted_sum_ls)
-    # 
-    # # STEP 3 sum biomass across common bins 
-    # 
-    # weighted_sum_allBio<-weighted_sum_df %>%
-    #   filter(bin %in% c(2:5)) %>% # BOATS is the minimum common denominator 10g to 100kg
-    #   group_by(Year, mem, esm, scenario, file) %>%
-    #   summarise(weighted_sum_allBio = sum(weighted_sum)) %>%
-    #   ungroup()
-    # 
-    # return(list(
-    #   brick_data_annual = brick_data_annual, 
-    #   weighted_sum_df = weighted_sum_df,
-    #   weighted_sum_allBio = weighted_sum_allBio))
-    # 
-    # rm(brick_data, brick_data_subset, indices, indices2, w, x, weighted_sum, brick_data_annual, weighted_sum_df, weighted_mean_allBio)
-    # 
-    
-    
     # STEP 2 - calculate annual means and sums of values across grid cells
     # https://gis.stackexchange.com/questions/257090/calculating-and-displaying-mean-annual-precipitation-from-cru-data
     # create vector to serve as index
@@ -253,9 +154,8 @@ extract_global_outputs<-function(netcdf, file = "new"){
     
     indices2<-format(indices2, format = "%Y")
     indices2<-as.numeric(indices2)
+    ### WARNING: if fun=sum, results is a raster of 0 instead of NA for e.g. BOATS size class 1 (empty and not 0!)
     brick_data_annual<-lapply(brick_data_subset, FUN = function(x) stackApply(x, indices=indices2, fun=mean))
-    
-    ### WARNING NEED TO CHECK THE ABOVE function as with sum it produced 0 instead of NA
     
     # # CHECK
     # dim(brick_data_annual[[1]])
