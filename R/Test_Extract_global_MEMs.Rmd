@@ -161,12 +161,12 @@ saveRDS(filenames,"/home/ubuntu/climate_mitigation/Tmp_data/Test_FilenamesTotalB
 
 rm(list=ls())
 
-# TotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/Test_TotalBiomassinSizeBinsbyModelRun.RDS")
-# FilenamesTotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/Test_FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
+TotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/Test_TotalBiomassinSizeBinsbyModelRun.RDS")
+FilenamesTotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/Test_FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
 
-# Check JB old outputs - different, possibly something wrong in function used?
-TotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/TotalBiomassinSizeBinsbyModelRun.RDS")
-FilenamesTotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
+# # Check JB old outputs - different, possibly something wrong in function used?
+# TotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/TotalBiomassinSizeBinsbyModelRun.RDS")
+# FilenamesTotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
 
 # take apecosm as example: 
 trial<-as.data.frame(TotalBiomassinSizeBinsbyModelRun[[1]])
@@ -193,13 +193,13 @@ plot<-ggplot(new_data, aes(x = year, y = biomass))+
 
 plot
 
-# jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_JBcode.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
-# plot
-# dev.off()
-
-jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_JBcode_withOldData.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
+jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_JBcode.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
 plot
 dev.off()
+
+# jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_JBcode_withOldData.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
+# plot
+# dev.off()
 
 #-------------------------------------------------------------------------------
 # DT version 
@@ -209,12 +209,12 @@ mem<-c("apecosm","boats", "dbpm", "zoomss", "ecotroph", "macroecological")
 esm<-c("gfdl-esm4", "ipsl-cm6a-lr")
 scenario<-c("historical", "ssp126", "ssp585") 
 
-# TotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/Test_TotalBiomassinSizeBinsbyModelRun.RDS")
-# FilenamesTotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/Test_FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
-
-# Check with JB old outputs
 TotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/Test_TotalBiomassinSizeBinsbyModelRun.RDS")
 FilenamesTotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/Test_FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
+
+# # Check with JB old outputs
+# TotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/Test_TotalBiomassinSizeBinsbyModelRun.RDS")
+# FilenamesTotalBiomassinSizeBinsbyModelRun<-readRDS("/home/ubuntu/climate_mitigation/Tmp_data/Test_FilenamesTotalBiomassinSizeBinsbyModelRun.RDS")
 
 # Save the data in the format required for the project
 
@@ -321,25 +321,21 @@ for (ii in 1:length(mem))
 }
 
 # CN reproduce DT's plot to check yours 
-# unique(size_summed_outputs$time)
-# size_summed_outputs<-size_summed_outputs %>% 
-#   filter(time <= 2014)
-
 plot<-ggplot(size_summed_outputs, aes(x = time, y = biomass))+
   geom_line()
 
 plot
 
-# same as provided by DT but different from approach above and CN results - see inside function but this could also be due to the fact that these are months instead of years.  
+# same as provided by DT but different from approach above and CN results - see inside loop above for possible reason. The difference could also be because some models provide monthly that have not been averaged to annual in script above but the loop annual outputs for all models.  
 
-# jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_DTcode.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
-# plot
-# dev.off()
-
-# this plot with new or old data is the same
-jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_DTcode_withOldData.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
+jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_DTcode.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
 plot
 dev.off()
+
+# # this plot with new or old data is the same
+# jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_DTcode_withOldData.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
+# plot
+# dev.off()
 
 
 ```
