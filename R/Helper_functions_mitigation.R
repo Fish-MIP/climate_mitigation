@@ -22,7 +22,6 @@ extract_global_outputs<-function(netcdf, file = "new"){
       esm = "ipsl-cm6a-lr"
     }
     
-    # WARNING - add in EC? 
     if(str_detect(netcdf, "monthly", negate = FALSE)){
       time_step = "monthly"
     }else if (str_detect(netcdf, "annual", negate = FALSE)){
@@ -45,7 +44,43 @@ extract_global_outputs<-function(netcdf, file = "new"){
     
     lon <- ncvar_get(nc_data, "lon")
     lat <- ncvar_get(nc_data, "lat", verbose = F)
+    
+    # check function below re time vector
+    t_units<-ncatt_get(nc_data, "time", "units")$value
+    
+    # get time vector based on file name
+    if(str_detect(netcdf, "1850", negate = FALSE)){
+      stTime = "1850-1-1"
+      enTime = "2014-12-31"
+    }else if (str_detect(netcdf, "1950", negate = FALSE)){
+      stTime = "1950-1-1"
+      enTime = "2014-12-31"
+    }else if (str_detect(netcdf, "2015", negate = FALSE)){
+      stTime = "2015-1-1"
+      enTime = "2100-12-31"
+    }
+    
+    if(time_step == "monthly"){
+      time_step_vector = "month"
+    }else if(time_step == "annual"){
+      time_step_vector = "year"
+    }
+    
+    library(lubridate) # https://data.library.virginia.edu/working-with-dates-and-time-in-r-using-the-lubridate-package/
+    t1<- as.character(seq(ymd(stTime), ymd(enTime), by = time_step_vector))
+    print(paste("Start time from file name ",t1[1], sep = ""))
+    print(paste("End time from file name ",t1[length(t1)], sep = ""))
+    
+    # get time vector based on built in function 
     t <- as.character(nc.get.time.series(nc_data))
+    print(paste("Start time with built in function ",t[1], sep = ""))
+    print(paste("End time with built in function ",t[length(t)], sep = ""))
+    
+    if((t1[1] != t[1]) | (t1[length(t1)] != t[length(t)])){
+      warning(paste(model, esm, scenario, "incorrect time vector", sep = " "), immediate. = TRUE)
+      ## trust the vector from file name (this function does not work with inputs)
+      t<-t1
+    }
     
     # this is only to FIX zoom size bins names 
     if(model != "zoomss" & file == "new"){
