@@ -17,15 +17,15 @@ This script is for extracting FishMIP global marine ecosystem model outputs for 
 
 For this project we need th global time series of biomass outputs, spanning size ranges typical of exploited fishes - 10g to 1000 kg.
 
-We will calculate annual time series spanning 1850-2100 under the rcp8.5 and rcp2.6 scenarios for each of the models, for whihc outputs are available:
+We will calculate annual time series spanning 1950-2100 under the rcp8.5 (ssp8-5.8) and rcp2.6 (ssp1-2.6) scenarios for each of the models, for which outputs are available:
 
 APECOSM  - available, IPSL only
 BOATS  - available
-DBEM  - possible later to request OR possible using Lmax classes?
-DBPM - available
-EcoOcean  - possible using Lmax classes?
-EcoTroph  - available?
-FEISTY  - possible using Lmax classes?
+DBEM  - not available 
+DBPM - available, IPSL only
+EcoOcean  - not available 
+EcoTroph  - available
+FEISTY  - not available 
 MACROECOLOGICAL  - available
 ZooMSS - available
 
@@ -33,7 +33,7 @@ ZooMSS - available
 
 check FishMIP/EmergentConstraints repo R/01_extract_modelled_data.Rmd for details and notes. 
 
-download macroecological (hist was dowloaded for SO project)
+download macroecological (hist was downloaded for SO project)
 
 scp -r b381217@levante.dkrz.de:/work/bb0820/ISIMIP/ISIMIP3b/OutputData/marine-fishery_global/MACROECOLOGICAL/ipsl-cm6a-lr/future/*nat_default_tcblog10* /rd/gem/private/users/camillan/EmergentConstraintData/
 
@@ -47,7 +47,6 @@ All models include 6 bins, except for boats and macroecological. Boats include 2
 
 rm(list=ls())
 
-### Read in files and extract modelled data at global scale
 library(raster)
 library(ncdf4)
 library(tidyverse)
@@ -55,16 +54,16 @@ library(ncdf4.helpers)
 library(parallel)
 library(pbapply)
 library(dplyr, warn.conflicts = FALSE)
+library(tictoc)
 
 select<-dplyr::select 
+summarise<-dplyr::summarise 
 
 ```
 
 ## Read in files and extract modelled data at global scale
 
 ```{r}
-
-### using files and code prepared by Cami:
 
 dir<-"/rd/gem/private/users/camillan/EmergentConstraintData"
 
@@ -95,20 +94,29 @@ netcdf = combinations$netcdf_name
 
 source("/home/ubuntu/climate_mitigation/R/Helper_functions_mitigation.R")
 
-# # test function 
-# test<-extract_global_outputs(netcdf[4]) 
-# 
-# # check
-# test$brick_data_annual
-# plot(test$brick_data_annual[[5]][[10]]) # size bin 5, random time step
-# 
-# rm(test)
+# test function
+tic()
+test<-extract_global_outputs(netcdf[5], file = "new")
+toc() # 298.508 sec elapsed - 5 min
+
+# check
+test$brick_data_annual
+plot(test$brick_data_annual[[5]][[10]]) # size bin 5, random time step
+
+rm(test)
 
 # now do all:
-all_bricks<-pblapply(netcdf,extract_global_outputs,cl=detectCores()-2)
+tic()
+all_bricks<-mclapply(netcdf,function(x) extract_global_outputs(x, file = "new"), mc.cores = detectCores()-2) # full time series - no years specified
+toc() # 358.05 ~ 6 min
 
 # extract data from function object
 names(all_bricks) <- combinations$identifier
+
+# # previous: OK same outputs 
+# all_bricks2<-pblapply(netcdf, extract_global_outputs, cl = detectCores()-2)
+# # extract data from function object
+# names(all_bricks2) <- combinations$identifier
 
 # extract data from function objects
 # annual maps as raster objects
@@ -147,10 +155,49 @@ SumsAllBio_df[sapply(SumsAllBio_df, is.null)] <- NULL
 SumsAllBio_df<-do.call(rbind, SumsAllBio_df)
 rownames(SumsAllBio_df)<-NULL
 SumsAllBio_df<-SumsAllBio_df %>% 
-  select(Year,scenario, esm, mem, weighted_mean_allBio) %>% 
-  rename(year = Year, biomass = weighted_mean_allBio)
+  select(Year,scenario, esm, mem, sum_allBio) %>% 
+  rename(year = Year, biomass = sum_allBio)
   
 head(SumsAllBio_df)
+
+```
+
+## calculate delta (damage)
+
+```{r}
+
+# # as per protocol 𝑑𝑦(𝑇)=𝑦(𝑇)−𝑦(0)
+# # with ref 1995-2014 inclusive
+
+temp<-SumsAllBio_df %>% 
+  mutate(id = paste0(esm, mem))
+
+temp<-split(temp, temp$id)
+
+reference<-list()
+temp2<-list()
+
+for(i in 1:length(temp)){
+  
+  # i = 2
+  
+  reference[[i]] <- temp[[i]] %>%
+    filter(year >= 1995 , year <= 2014) %>%
+    group_by() %>%
+    summarise(ref = mean(biomass, na.rm = TRUE))
+
+  reference[[i]]<-reference[[i]]$ref
+
+  temp2[[i]]<-temp[[i]] %>%
+    mutate(delta = biomass - reference[[i]]) %>% 
+    select(-biomass, -id)
+  
+  # Check 
+  # temp[[i]][1,5]-reference[[i]]
+  
+}
+
+damage<-do.call(rbind, temp2)
 
 ```
 
@@ -158,10 +205,13 @@ head(SumsAllBio_df)
 
 ```{r}
 
+name<-paste0("/home/ubuntu/climate_mitigation/Tmp_data/", Sys.Date(), "_Extract_global_MEMs.RData")
+
 save(brick_data_annual,
      SumsBySizeBins_df,
      SumsAllBio_df,
-     file = "/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs.RData")
+     damage,
+     file = name)
 
 ```
 
@@ -169,9 +219,10 @@ save(brick_data_annual,
 
 ```{r}
 
-rm(list=ls())
-data<-"/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs.RData"
-load(data)
+# rm(list=ls())
+# # data<-"/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs.RData"
+# data<-name
+# load(data)
 
 # plot all 
 SumsBySizeBins_df_toplot<- SumsBySizeBins_df %>% 
@@ -181,7 +232,10 @@ plot<-ggplot(SumsBySizeBins_df_toplot, aes(x = year, y = biomass, group = ID, co
   geom_line()+
   facet_wrap(~mem)
 
-jpeg("/home/ubuntu/climate_mitigation/Output/trends_allModels_allBinsSeparately.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
+## NOTE - previous version of all plots (with MS) saved in /home/ubuntu/climate_mitigation/Output/Test_output/
+name_fig1 = paste0("/home/ubuntu/climate_mitigation/Output/", Sys.Date(),"_trends_allModels_allBinsSeparately.jpg")
+
+jpeg(name_fig1, width = 7, height = 5, units = "in", res = 300, bg = "transparent")
 plot
 dev.off()
 
@@ -206,25 +260,73 @@ plot_gfdl<-ggplot(SumsAllBio_df_toplot_gfdl, aes(x = year, y = biomass, group = 
 
 library(patchwork)
 
-jpeg("/home/ubuntu/climate_mitigation/Output/trends_allModels_allBinsSummed.jpg", width = 8, height = 8, units = "in", res = 300, bg = "transparent")
+name_fig2 = paste0("/home/ubuntu/climate_mitigation/Output/", Sys.Date(),"_trends_allModels_allBinsSummed.jpg")
+
+jpeg(name_fig2, width = 8, height = 8, units = "in", res = 300, bg = "transparent")
 plot_ipsl/plot_gfdl
 dev.off()
 
-# check apecosm 
-SumsAllBio_df_toplot2<-SumsAllBio_df %>% 
-  filter(mem == "apecosm", esm == "ipsl-cm6a-lr", scenario == "historical")
-
-plot<-ggplot(SumsAllBio_df_toplot2, aes(x = year, y = biomass))+
-  geom_line()
-
-# check this is the same as per JB and DT (see test)
-jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_CNcode.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
-plot
-dev.off()
+# # check apecosm 
+# SumsAllBio_df_toplot2<-SumsAllBio_df %>% 
+#   filter(mem == "apecosm", esm == "ipsl-cm6a-lr", scenario == "historical")
+# 
+# plot<-ggplot(SumsAllBio_df_toplot2, aes(x = year, y = biomass))+
+#   geom_line()
+#
+# # check this is the same as per JB and DT (see test)
+# 
+# name_fig3 = paste0("/home/ubuntu/climate_mitigation/Output/", Sys.Date(),"_test_apecosm_CNcode.jpg")
+# 
+# jpeg(name_fig3, width = 7, height = 5, units = "in", res = 300, bg = "transparent")
+# plot
+# dev.off()
 
 ## plot maps of values 
 plot(brick_data_annual$dbpm_ipsl_historical[[1]][[1]])
 plot(brick_data_annual$apecosm_ipsl_historical[[1]][[1]])
+
+### plot trends in Delta  
+
+delta_df_toplot_ipsl<- damage %>% 
+  filter(esm == "ipsl-cm6a-lr")
+
+plot_ipsl_delta<-ggplot(delta_df_toplot_ipsl, aes(x = year, y = delta, group = scenario, color = scenario))+
+  geom_line()+
+  theme_bw()+
+  ggtitle("IPSL")+
+  facet_wrap(~mem, scale = "free")
+
+delta_df_toplot_gfdl<- damage %>% 
+  filter(esm != "ipsl-cm6a-lr")
+
+plot_gfdl_delta<-ggplot(delta_df_toplot_gfdl, aes(x = year, y = delta, group = scenario, color = scenario))+
+  geom_line()+
+  theme_bw()+
+  ggtitle("GFDL")+
+  facet_wrap(~mem, scale = "free")
+
+name_fig3 = paste0("/home/ubuntu/climate_mitigation/Output/", Sys.Date(),"_trends_allModels_damage.jpg")
+
+jpeg(name_fig3, width = 8, height = 8, units = "in", res = 300, bg = "transparent")
+plot_ipsl_delta/plot_gfdl_delta
+dev.off()
+
+```
+
+## adjust names as per protocol 
+
+```{r}
+
+# climate_model = esm (string)
+# impact_model = mem (string)
+# forcing = scenario (string)
+# time = year (integer)
+# damage = delta (float)
+
+damage<-damage %>% 
+  rename(time = year, forcing = scenario, climate_model = esm, impact_model = mem, damage = delta)
+
+damage<-damage[,c("climate_model", "impact_model", "forcing", "time", "damage")]  
 
 ```
 
@@ -232,8 +334,11 @@ plot(brick_data_annual$apecosm_ipsl_historical[[1]][[1]])
 
 ```{r}
 
-write.csv(SumsAllBio_df,
-     file = "/home/ubuntu/climate_mitigation/Tmp_data/Extract_global_MEMs_SumsAllBio_df.csv",
+# NOTE - previous version file saved in Output/Test_output/Extract_global_MEMs_SumAllBio_df.csv
+name = paste0("/home/ubuntu/climate_mitigation/Output/", Sys.Date(), "_FishBiomassDamage.csv")
+
+write.csv(damage,
+     file = name,
      row.names = FALSE)
 
 ```

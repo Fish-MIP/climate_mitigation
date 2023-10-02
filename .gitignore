@@ -3,8 +3,7 @@
 .RData
 .Ruserdata
 
-# Plots 
-*.jpg
+# Plots # actually provide plots of trends
 *.pdf
 
 # Rdata files 

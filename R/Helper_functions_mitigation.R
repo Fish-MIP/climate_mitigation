@@ -5,12 +5,10 @@
 extract_global_outputs<-function(netcdf, file = "new"){
   
   # # trial
-  # netcdf = "ecotroph_gfdl-esm4_nobasd_historical_nat_default_tcblog10_global_annual_1950_2014.nc"
-  # netcdf = "apecosm_ipsl-cm6a-lr_nobasd_historical_nat_default_tcblog10_global_monthly_1850_2014.nc"
-  # netcdf = "macroecological_ipsl-cm6a-lr_nobasd_ssp585_nat_default_tcblog10_global_annual_2015_2100.nc"
-  # netcdf = "boats_gfdl-esm4_nobasd_historical_nat_default_tcblog10_global_monthly_1950_2014.nc"
+  # a<-combinations %>% filter(identifier == "boats_ipsl_historical")
+  # netcdf = a$netcdf_name
   # file = "new"
-  
+   
   if(file.exists(file.path(dir, netcdf))){
     
     ######### extract info from netcdf name and print warnings ----
@@ -93,6 +91,8 @@ extract_global_outputs<-function(netcdf, file = "new"){
     t_units<-ncatt_get(nc_data, "time", "units")$value
     b_units<-ncatt_get(nc_data, "tcblog10", "units")$value
     
+    missingValues<-ncatt_get(nc_data, "tcblog10", "missing_value")$value
+    
     nc_close(nc_data)
     
     # print warnings 
@@ -110,6 +110,8 @@ extract_global_outputs<-function(netcdf, file = "new"){
     if(enLon != 179.5){
       warning(paste(model, esm, scenario, "incorrect ending Lon", sep = " "), immediate. = TRUE)
     }
+    ## dbpm and zoom IPSL incorrect ln fixed below 
+    
     if(stLat != 89.5){
       warning(paste(model, esm, scenario, "incorrect starting Lat", sep = " "), immediate. = TRUE)
     }
@@ -137,6 +139,8 @@ extract_global_outputs<-function(netcdf, file = "new"){
     if(bins[length(bins)] != 6){
       warning(paste(model, esm, scenario, "incorrect bins dimension", sep = " "), immediate. = TRUE)
     }
+    ## macroecological 5 bins and boats 2-4 bins fixed below 
+    
     if(b_units != "g m-2"){
       warning(paste(model, esm, scenario, "incorrect biomass units", sep = " "), immediate. = TRUE)
     }
@@ -145,7 +149,7 @@ extract_global_outputs<-function(netcdf, file = "new"){
     brick_data<-list()
     
     for (i in 1:length(bins)){
-      brick_data[[i]]<-brick(file.path(dir, netcdf), level = i)
+      brick_data[[i]]<-brick(file.path(dir, netcdf), level = i) # level: integer > 0 (default=1). To select the 'level' (4th dimension variable) to use, if the file has 4 dimensions, e.g. to create a RasterBrick of weather over time at a certain height.
       print(dim(brick_data[[i]]))
     }
     
@@ -156,7 +160,44 @@ extract_global_outputs<-function(netcdf, file = "new"){
     #### IF JB and DT approach - function end here and output is:
     # return(brick_data)
     
-    ######### WARINING - remove marginal seas using the land-sea IPSL mask provided by Matthias TO DO ----
+    ######### remove marginal seas using the land-sea IPSL mask provided by Matthias
+    
+    if(esm == "ipsl-cm6a-lr" & model %in% c("dbpm", "macroecological", "feisty", "zoomss")){
+      
+      # read in the mask
+      dir_land<-"/rd/gem/private/users/camillan"
+      brick_land<-brick(file.path(dir_land, "IPSL-CM6A-LR_lsm_nolakes.nc"))
+      
+      # CHECK 
+      # plot(brick_land)
+      # plot(brick_data[[5]][[dim(brick_data[[2]])[3]]])
+      
+      # # check extent
+      # extent(brick_land)
+      # extent(brick_data[[1]])
+      
+      # deal with different extent for Zoom and DBPM IPSL - from SO code
+      if(stLon != -179.5){
+        bb <- extent(-180, 180, -90, 90)
+        for(i in 1:6){
+          brick_data[[i]]<-setExtent(brick_data[[i]], bb, keepres=FALSE)
+        }
+      }
+      
+      # multiply data X mask with na.rm = F to delete lakes
+      brick_data[[1]]<-brick_data[[1]]*brick_land
+      # plot(brick_data[[1]][[1]])
+      # plot(trial[[1]])
+      brick_data[[2]]<-brick_data[[2]]*brick_land
+      brick_data[[3]]<-brick_data[[3]]*brick_land
+      brick_data[[4]]<-brick_data[[4]]*brick_land
+      brick_data[[5]]<-brick_data[[5]]*brick_land
+      
+      if(model != "macroecological"){
+        brick_data[[6]]<-brick_data[[6]]*brick_land
+      }
+      
+    }
     
     ######### calculate total annual sums (OR weighted annual means) ----
     
@@ -178,7 +219,7 @@ extract_global_outputs<-function(netcdf, file = "new"){
     # # CHECK 
     # plot(brick_data_subset[[1]][[1]])
     
-    # STEP 2 - calculate annual means and sums of values across grid cells
+    # STEP 2 - calculate annual means
     # https://gis.stackexchange.com/questions/257090/calculating-and-displaying-mean-annual-precipitation-from-cru-data
     # create vector to serve as index
     
@@ -189,8 +230,9 @@ extract_global_outputs<-function(netcdf, file = "new"){
     
     indices2<-format(indices2, format = "%Y")
     indices2<-as.numeric(indices2)
-    ### WARNING: if fun=sum, results is a raster of 0 instead of NA for e.g. BOATS size class 1 (empty and not 0!)
+    tic()
     brick_data_annual<-lapply(brick_data_subset, FUN = function(x) stackApply(x, indices=indices2, fun=mean))
+    toc()
     
     # # CHECK
     # dim(brick_data_annual[[1]])
@@ -201,20 +243,32 @@ extract_global_outputs<-function(netcdf, file = "new"){
     # STEP 3 - extract global sums 
     
     # create a raster with area cell values (outside loop for efficiency)
-    w <- area(brick_data_annual[[1]])*1e6 # WARNING - the code on area weighed means in EC and FishingEffort 09 does /10000, why? these functions are not used but they should be corrected. 
-    
+    # crs(brick_data_annual[[1]]) # lon/lat
+    # plot(brick_data_annual[[2]][[1]])
+    w <- area(brick_data_annual[[1]])*1e6 
+    w2<-area(brick_data_annual[[2]][[1]], na.rm = TRUE)*1e6 # size class 2 (available in all models) and year 1
+    # plot(w)
+    # plot(w2) # same but without land 
+    # If x is a Raster* object: RasterLayer or RasterBrick. Cell values represent the size of the cell in km2, 
+    # or the relative size if weights=TRUE. 
+    # If the CRS is not longitude/latitude the values returned are the product of the cell resolution 
+    # (typically in square meter).
+     
     weighted_mean_lat_ls<-list()
     
     for(i in 1: length(brick_data_annual)){ # for each size bin
       
-      # i =1
+      # i =2
       # code from below on weighted means and adjusted
       # https://stackoverflow.com/questions/55230510/calculating-weighted-spatial-global-annual-averages-across-grid-cells-using-netc
       
       # multiply areas with values
-      x <- brick_data_annual[[i]] * w
-      # plot(x)
-      # plot(w)
+      x <- brick_data_annual[[i]] * w2
+      
+      # CHECK 
+      # plot(brick_data_annual[[i]][[1]])
+      # plot(x[[i]])
+      # plot(w2)
       
       # compute sum
       weighted_mean_lat<-cellStats(x, sum, na.rm = TRUE) 
@@ -237,16 +291,38 @@ extract_global_outputs<-function(netcdf, file = "new"){
     weighted_mean_allBio<-weighted_mean_lat_df %>%
       filter(bin %in% c(2:5)) %>% 
       group_by(Year, mem, esm, scenario, file) %>%
-      summarise(weighted_mean_allBio = sum(weighted_mean)) %>%
+      summarise(sum_allBio = sum(weighted_mean)) %>% 
       ungroup()
+
+    ## CHECK     
+    # head(weighted_mean_allBio)
+    # a<-filter(weighted_mean_lat_df, Year == 1950)
+    # sum(a$weighted_mean)
+    # filter(weighted_mean_allBio, Year == 1950)
     
-    #### rename objects with more approriate names:
+    # ### this needs to be done outside the function as future scenarios will not have the ref year
+    # ######### calculate delta change ----
+    # 
+    # # as per protocol 𝑑𝑦(𝑇)=𝑦(𝑇)−𝑦(0)
+    # # with ref 1995-2014 inclusive
+    # 
+    # reference <- weighted_mean_allBio %>% 
+    #   filter(Year >= 1995 , Year <= 2014) %>% 
+    #   group_by(mem, esm, scenario, file) %>% 
+    #   summarise(ref = mean(sum_allBio, na.rm = TRUE))
+    # 
+    # reference<-reference$ref
+    # 
+    # weighted_mean_allBio<-weighted_mean_allBio %>% 
+    #   mutate(delta = sum_allBio - reference)
+    
+    #### rename objects:
     brick_data_annual<-brick_data_annual
     SumsBySizeBins_df<-weighted_mean_lat_df
     SumsAllBio_df<-weighted_mean_allBio
     
     return(list(brick_data_annual = brick_data_annual,
-                SumsBySizeBins_df = SumsBySizeBins_df,
+                SumsBySizeBins_df = SumsBySizeBins_df, # this is the only data provided as csv
                 SumsAllBio_df = SumsAllBio_df))
     
     rm(brick_data, brick_data_subset, indices, indices2, w, x, weighted_sum, 

@@ -193,11 +193,11 @@ plot<-ggplot(new_data, aes(x = year, y = biomass))+
 
 plot
 
-jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_JBcode.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
+jpeg("/home/ubuntu/climate_mitigation/Output/Test_output/test_apecosm_JBcode.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
 plot
 dev.off()
 
-# jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_JBcode_withOldData.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
+# jpeg("/home/ubuntu/climate_mitigation/Output/Test_output/test_apecosm_JBcode_withOldData.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
 # plot
 # dev.off()
 
@@ -328,12 +328,12 @@ plot
 
 # same as provided by DT but different from approach above and CN results - see inside loop above for possible reason. The difference could also be because some models provide monthly that have not been averaged to annual in script above but the loop annual outputs for all models.  
 
-jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_DTcode.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
+jpeg("/home/ubuntu/climate_mitigation/Output/Test_output/test_apecosm_DTcode.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
 plot
 dev.off()
 
 # # this plot with new or old data is the same
-# jpeg("/home/ubuntu/climate_mitigation/Output/test_apecosm_DTcode_withOldData.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
+# jpeg("/home/ubuntu/climate_mitigation/Output/Test_output/test_apecosm_DTcode_withOldData.jpg", width = 7, height = 5, units = "in", res = 300, bg = "transparent")
 # plot
 # dev.off()
 
