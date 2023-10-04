@@ -324,9 +324,15 @@ dev.off()
 # damage = delta (float)
 
 damage<-damage %>% 
-  rename(time = year, forcing = scenario, climate_model = esm, impact_model = mem, damage = delta)
+  rename(time = year, forcing = scenario, climate_model = esm, impact_model = mem, damage = delta) %>% 
+  mutate(forcing = ifelse(forcing == "ssp1", "ssp126", ifelse(forcing == "ssp5", "ssp585", forcing)))
+
+# head(damage)
+# unique(damage$forcing)
+# View(damage %>% select(forcing, time) %>% unique())
 
 damage<-damage[,c("climate_model", "impact_model", "forcing", "time", "damage")]  
+head(damage)
 
 ```
 
