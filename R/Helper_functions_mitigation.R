@@ -157,6 +157,20 @@ extract_global_outputs<-function(netcdf, file = "new"){
     # plot(brick_data[[1]][[1]])
     # mean(brick_data[[1]]) # BOATS size class 1 and 6 is a matrix of NAs
     
+    # check if land is specified as missingValues or as NA
+    # options(scipen=999)
+    trial<-brick_data[[1]][[1]] # take first layer and first year
+    if(is.null(trial[trial == missingValues]) == FALSE){ # if there are missingValues cells 
+      warning(paste(model, esm, scenario, "missing values not as NAs", sep = " "), immediate. = TRUE)
+      for (i in 1:length(brick_data)){
+        brick_data[[i]][brick_data[[i]] == missingValues]<-NA
+      }
+    }
+    # # back check 
+    # plot(trial)
+    # trial[is.na(trial)] <- missingValues
+    # plot(trial)
+    
     #### IF JB and DT approach - function end here and output is:
     # return(brick_data)
     
